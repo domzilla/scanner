@@ -89,11 +89,16 @@ This project uses **File System Synchronized Groups** (internally `PBXFileSystem
 # Build
 xcodebuild -scheme "scanner" -destination "platform=macOS" build
 
-# Run tests
-xcodebuild -scheme "scanner" -destination "platform=macOS" test
-
 # Clean
 xcodebuild -scheme "scanner" clean
+```
+
+## Testing (MANDATORY)
+Run tests after any code change. Build artifacts **must** go to `/tmp` — never leave a `build/` directory in the source tree.
+```bash
+# Build & run tests
+xcodebuild -target "libscannerTests" -configuration Debug -destination "platform=macOS" SYMROOT=/tmp/scanner-build OBJROOT=/tmp/scanner-build build
+xcrun xctest /tmp/scanner-build/Debug/libscannerTests.xctest
 ```
 
 ## Code Formatting (MANDATORY)
