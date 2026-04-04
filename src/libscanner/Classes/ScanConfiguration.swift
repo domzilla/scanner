@@ -23,7 +23,6 @@ enum ConfigOption: String, CaseIterable, Sendable {
     case a4
     case mono
     case open
-    case dir
     case name
     case verbose
     case scanner
@@ -32,8 +31,6 @@ enum ConfigOption: String, CaseIterable, Sendable {
     case exactName = "exactname"
     case ocr
     case rotate
-    case summarize
-    case autoname
 
     var synonyms: [String] {
         switch self {
@@ -42,20 +39,18 @@ enum ConfigOption: String, CaseIterable, Sendable {
         case .jpeg: ["jpg"]
         case .tiff: ["tif"]
         case .mono: ["bw"]
-        case .dir: ["folder"]
         case .verbose: ["v"]
         case .scanner: ["s"]
         case .resolution: ["res", "minResolution"]
         case .browseSecs: ["time", "t"]
         case .exactName: ["exact"]
-        case .summarize: ["summary"]
         default: []
         }
     }
 
     var type: ConfigOptionType {
         switch self {
-        case .dir, .name, .scanner, .resolution, .browseSecs, .rotate:
+        case .name, .scanner, .resolution, .browseSecs, .rotate:
             .string
         default:
             .flag
@@ -64,7 +59,6 @@ enum ConfigOption: String, CaseIterable, Sendable {
 
     var defaultValue: String? {
         switch self {
-        case .dir: "\(NSHomeDirectory())/Documents/Archive"
         case .resolution: "150"
         case .browseSecs: "10"
         case .rotate: "0"
@@ -98,10 +92,8 @@ enum ConfigOption: String, CaseIterable, Sendable {
             "Scan in monochrome (black and white)"
         case .open:
             "Open the scanned image when done."
-        case .dir:
-            "Specify a directory where the files should go."
         case .name:
-            "Specify a custom name for the output file."
+            "Specify a custom name for the output file (without extension)"
         case .verbose:
             "Provide verbose logging."
         case .scanner:
@@ -116,10 +108,6 @@ enum ConfigOption: String, CaseIterable, Sendable {
             "Converts the scanned image(s) to text and outputs to stdout"
         case .rotate:
             "Specify degrees to rotate the scanned images"
-        case .summarize:
-            "Use on-device OCR and Apple Intelligence to output a .summary.txt file with a brief description of the document's text."
-        case .autoname:
-            "Use on-device OCR and Apple Intelligence to create a concise and accurate name for the output file."
         }
     }
 
@@ -152,11 +140,9 @@ enum ConfigValue: Sendable {
 
 final class ScanConfiguration: Sendable {
     let config: [ConfigOption: ConfigValue]
-    let tags: [String]
 
     init(arguments: [String] = [], configFilePath: String? = nil) {
         var config: [ConfigOption: ConfigValue] = [:]
-        var tags: [String] = []
 
         // 1. Load defaults
         for option in ConfigOption.allCases {
@@ -172,14 +158,13 @@ final class ScanConfiguration: Sendable {
             let contents = try? String(contentsOfFile: filePath, encoding: .utf8)
         {
             let fileArgs = contents.components(separatedBy: "\n")
-            ScanConfiguration.parse(arguments: fileArgs, into: &config, tags: &tags)
+            ScanConfiguration.parse(arguments: fileArgs, into: &config)
         }
 
         // 3. Load CLI arguments (override everything)
-        ScanConfiguration.parse(arguments: arguments, into: &config, tags: &tags)
+        ScanConfiguration.parse(arguments: arguments, into: &config)
 
         self.config = config
-        self.tags = tags
     }
 
     // MARK: - Convenience Accessors
@@ -204,8 +189,7 @@ final class ScanConfiguration: Sendable {
 
     private static func parse(
         arguments: [String],
-        into config: inout [ConfigOption: ConfigValue],
-        tags: inout [String]
+        into config: inout [ConfigOption: ConfigValue]
     ) {
         var i = 0
         while i < arguments.count {
@@ -232,7 +216,7 @@ final class ScanConfiguration: Sendable {
                     self.log("WARNING: Unknown option '\(arg)' will be ignored")
                 }
             } else if !arg.isEmpty {
-                tags.append(arg)
+                self.log("WARNING: Unknown argument '\(arg)' will be ignored")
             }
 
             i += 1
@@ -244,7 +228,7 @@ final class ScanConfiguration: Sendable {
     }
 
     private static func printHelp() {
-        print("Usage: scanner [-option] [-option] [tag] [tag] [tag]...")
+        print("Usage: scanner [options]")
         print("")
 
         for option in ConfigOption.allCases {
@@ -256,13 +240,14 @@ final class ScanConfiguration: Sendable {
             print("")
         }
 
-        let defaultDir = ConfigOption.dir.defaultValue ?? "~/Documents/Archive"
         print("")
         print("Examples:")
         print("")
-        print("scanner -duplex taxes")
-        print("   ^-- Scan 2-sided and place in \(defaultDir)/taxes/")
-        print("scanner bills dental")
-        print("   ^-- Scan and place in \(defaultDir)/bills/ with alias in \(defaultDir)/dental/")
+        print("scanner")
+        print("   ^-- Scan to current directory as scan_0.pdf")
+        print("scanner -duplex")
+        print("   ^-- Scan 2-sided to current directory")
+        print("scanner -name invoice -jpeg")
+        print("   ^-- Scan to invoice.jpg in current directory")
     }
 }

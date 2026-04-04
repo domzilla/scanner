@@ -1,18 +1,16 @@
 # scanner - AGENTS.md
 
 ## Project Overview
-**scanner** is a macOS command-line document scanning utility built on the ImageCaptureCore framework. It scans documents from flatbed or document feeder, outputs to PDF/JPEG/TIFF/PNG, organizes files by tags into year-based subdirectories with symlink aliasing, and supports OCR, on-device AI summarization/auto-naming (macOS 26.0+ Apple Intelligence), batch scanning, duplex, rotation, and configurable defaults via `~/.scanline.conf`.
+**scanner** is a macOS command-line document scanning utility built on the ImageCaptureCore framework. It scans documents from flatbed or document feeder, outputs to PDF/JPEG/TIFF/PNG to the current working directory, and supports OCR, batch scanning, duplex, rotation, and configurable defaults via `~/.scanline.conf`.
 
 ### Architecture
-- **ScanConfiguration** — CLI argument parsing, config file loading, option synonyms, three-layer precedence (defaults → file → CLI args)
+- **libscanner** (static framework) — All business logic, linked by both the `scanner` executable and `libscannerTests`
+- **ScanConfiguration** — CLI argument parsing, config file loading (`~/.scanline.conf`), option synonyms, three-layer precedence (defaults → file → CLI args)
 - **ScannerBrowser** — Scanner discovery via `ICDeviceBrowser`, fuzzy/exact name matching, delegate-based callbacks
 - **ScannerController** — Scanner session management, functional unit selection (flatbed/feeder), scan parameter configuration (resolution, color, format, duplex, page size), batch mode
-- **OutputProcessor** — Post-processing pipeline: OCR (Vision), AI summarization/auto-naming (FoundationModels), image rotation (CoreImage), PDF combining (Quartz/PDFKit), file output with tag-based directory structure and symlink aliasing
+- **OutputProcessor** — Post-processing pipeline: OCR (Vision), image rotation (CoreImage), PDF combining (Quartz/PDFKit), file output to CWD with timestamp-based naming (`scan_YYYYMMDD-HHmmss`)
 - **AppController** — Main orchestrator coordinating browser → controller → output flow with CFRunLoop lifecycle
-- **Logger** — Debug/error logging to stderr (no-op in release builds)
-
-### Original Project
-This is a Swift 6 rewrite of [scanline](https://github.com/klep/scanline) (originally Objective-C/Swift 5 hybrid by Scott J. Kleper / Boat Launch, Inc.). Original sources are in the repository root (`libscanline/`, `scanline/`, `scanline.xcodeproj`). The rewrite lives under `src/`.
+- **Logger** — Three levels: `verbose()` (runtime, respects `-verbose` flag), `debug()`/`error()` (stderr, no-op in release builds)
 
 ## Tech Stack
 - **Language**: Swift 6

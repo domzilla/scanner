@@ -42,13 +42,6 @@ struct ConfigurationTests {
     }
 
     @Test
-    func gettingTagsFromCommandLine() {
-        let config = ScanConfiguration(arguments: ["taxes-2013"], configFilePath: self.testConfigPath)
-
-        #expect(config.tags.first == "taxes-2013")
-    }
-
-    @Test
     func jpegOption() {
         let config = ScanConfiguration(arguments: ["-jpeg"])
 
