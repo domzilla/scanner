@@ -27,7 +27,7 @@ struct ConfigOptionTests {
         #expect(ConfigOption.from(key: "resolution") == .resolution)
         #expect(ConfigOption.from(key: "browsesecs") == .browseSecs)
         #expect(ConfigOption.from(key: "exactname") == .exactName)
-        #expect(ConfigOption.from(key: "ocr") == .ocr)
+
         #expect(ConfigOption.from(key: "rotate") == .rotate)
     }
 
@@ -40,12 +40,13 @@ struct ConfigOptionTests {
         #expect(ConfigOption.from(key: "flatbed") == nil)
         #expect(ConfigOption.from(key: "jpeg") == nil)
         #expect(ConfigOption.from(key: "mono") == nil)
+        #expect(ConfigOption.from(key: "ocr") == nil)
     }
 
     @Test
     func typePropertyForFlags() {
         let flagOptions: [ConfigOption] = [
-            .duplex, .batch, .list, .open, .verbose, .exactName, .ocr,
+            .duplex, .batch, .list, .open, .verbose, .exactName,
         ]
         for option in flagOptions {
             #expect(option.type == .flag, "Expected \(option) to be .flag")
@@ -77,7 +78,7 @@ struct ConfigOptionTests {
     @Test
     func noDefaultValueForFlagsAndFreeformStrings() {
         let noDefaultOptions: [ConfigOption] = [
-            .duplex, .batch, .list, .open, .verbose, .exactName, .ocr,
+            .duplex, .batch, .list, .open, .verbose, .exactName,
             .name, .scanner,
         ]
         for option in noDefaultOptions {
@@ -87,7 +88,7 @@ struct ConfigOptionTests {
 
     @Test
     func allCasesCount() {
-        #expect(ConfigOption.allCases.count == 16)
+        #expect(ConfigOption.allCases.count == 15)
     }
 
     @Test

@@ -114,7 +114,6 @@ struct ConfigurationTests {
             ("-open", .open),
             ("-verbose", .verbose),
             ("-exactname", .exactName),
-            ("-ocr", .ocr),
         ]
         for (arg, option) in flags {
             let config = makeConfig([arg])
@@ -126,7 +125,7 @@ struct ConfigurationTests {
     func unsetFlagsAreFalse() {
         let config = makeConfig([])
         let allFlags: [ConfigOption] = [
-            .duplex, .batch, .list, .open, .verbose, .exactName, .ocr,
+            .duplex, .batch, .list, .open, .verbose, .exactName,
         ]
         for option in allFlags {
             #expect(config.flag(option) == false, "\(option) should be false by default")
@@ -145,10 +144,10 @@ struct ConfigurationTests {
 
     @Test
     func multipleFlagsCombined() {
-        let config = makeConfig(["-duplex", "-verbose", "-ocr"])
+        let config = makeConfig(["-duplex", "-verbose", "-open"])
         #expect(config.flag(.duplex) == true)
         #expect(config.flag(.verbose) == true)
-        #expect(config.flag(.ocr) == true)
+        #expect(config.flag(.open) == true)
         #expect(config.flag(.batch) == false)
         #expect(config.flag(.list) == false)
     }

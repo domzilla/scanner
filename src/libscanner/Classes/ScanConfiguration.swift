@@ -25,7 +25,6 @@ enum ConfigOption: String, CaseIterable, Sendable {
     case resolution
     case browseSecs = "browsesecs"
     case exactName = "exactname"
-    case ocr
     case rotate
 
     var type: ConfigOptionType {
@@ -97,8 +96,6 @@ enum ConfigOption: String, CaseIterable, Sendable {
             "Specify how long to wait when searching for scanners (in seconds)"
         case .exactName:
             "When specified, only the scanner with the exact name specified will be used (no fuzzy matching)"
-        case .ocr:
-            "Converts the scanned image(s) to text and outputs to stdout"
         case .rotate:
             "Specify degrees to rotate the scanned images"
         }
@@ -278,7 +275,6 @@ final class ScanConfiguration: Sendable {
         self.printSection("Output", options: [
             (.name, "Custom filename (without extension)"),
             (.open, "Open the file after scanning"),
-            (.ocr, "Run OCR and output text to stdout"),
         ])
 
         self.printSection("Scanner Selection", options: [
@@ -298,7 +294,7 @@ final class ScanConfiguration: Sendable {
         print("  scanner -name invoice -format jpeg   Scan to invoice.jpg")
         print("  scanner -input flatbed -color mono   Scan from flatbed in black and white")
         print("  scanner -list                        Show available scanners")
-        print("  scanner -ocr                         Scan and output text to stdout")
+        print("  scanner -size legal                  Scan a legal size page")
     }
 
     private static func printSection(_ title: String, options: [(ConfigOption, String)]) {

@@ -11,7 +11,6 @@ import CoreImage
 import Foundation
 import Quartz
 import UniformTypeIdentifiers
-import Vision
 
 // MARK: - OutputProcessor
 
@@ -25,13 +24,6 @@ class OutputProcessor: @unchecked Sendable {
     }
 
     func process() async -> Bool {
-        if self.configuration.flag(.ocr) {
-            for url in self.urls {
-                let pageText = await self.extractText(fromImageAt: url)
-                print(pageText)
-            }
-        }
-
         if let rotationDegrees = Int(self.configuration.string(.rotate) ?? "0"), rotationDegrees != 0 {
             self.log("Rotating by \(rotationDegrees) degrees")
             for url in self.urls {
@@ -74,22 +66,6 @@ class OutputProcessor: @unchecked Sendable {
         document.write(toFile: tempFilePath)
 
         return URL(fileURLWithPath: tempFilePath)
-    }
-
-    // MARK: - OCR
-
-    private func extractText(fromImageAt imageURL: URL) async -> String {
-        var request = RecognizeTextRequest()
-        request.recognitionLevel = .accurate
-
-        do {
-            let observations = try await request.perform(on: imageURL)
-            let strings = observations.map { $0.topCandidates(1).first?.string ?? "" }
-            return strings.joined(separator: "\n")
-        } catch {
-            self.log("Error while performing text recognition")
-            return ""
-        }
     }
 
     // MARK: - Image Rotation
@@ -182,10 +158,6 @@ class OutputProcessor: @unchecked Sendable {
     }
 
     private func log(_ message: String) {
-        if self.configuration.flag(.ocr) {
-            fputs("\(message)\n", stderr)
-        } else {
-            print(message)
-        }
+        print(message)
     }
 }

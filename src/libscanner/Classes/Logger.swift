@@ -17,11 +17,7 @@ enum Logger {
     /// Works in both debug and release builds.
     static func verbose(_ message: String) {
         guard let configuration = self.configuration, configuration.flag(.verbose) else { return }
-        if configuration.flag(.ocr) {
-            fputs("\(message)\n", stderr)
-        } else {
-            print(message)
-        }
+        print(message)
     }
 
     /// Debug logging — only active in DEBUG builds.

@@ -30,18 +30,6 @@ struct LoggerTests {
     }
 
     @Test
-    func verboseWithOcrAndVerbose() {
-        Logger.configuration = makeConfig(["-verbose", "-ocr"])
-        Logger.verbose("test ocr message")
-    }
-
-    @Test
-    func verboseWithOcrButNotVerbose() {
-        Logger.configuration = makeConfig(["-ocr"])
-        Logger.verbose("should be silent")
-    }
-
-    @Test
     func debugDoesNotCrash() {
         Logger.debug("test debug message")
     }

@@ -10,7 +10,7 @@ scanner supports many different purposes and options. Some of the things you can
 * Scan from the document feeder or flatbed
 * Scan in various formats, sizes, and modes all driven from command line options
 * Provide defaults in a config file (~/.config/scanner/scanner.conf)
-* Convert the scanned document to text (-ocr)
+
 
 Here are some example command lines:
 

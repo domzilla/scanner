@@ -115,10 +115,6 @@ class ScannerBrowser: NSObject, ICDeviceBrowserDelegate {
     }
 
     private func log(_ message: String) {
-        if self.configuration.flag(.ocr) {
-            fputs("\(message)\n", stderr)
-        } else {
-            print(message)
-        }
+        print(message)
     }
 }
