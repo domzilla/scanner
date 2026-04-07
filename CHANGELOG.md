@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- Renamed config file from `~/.scanline.conf` to `~/.scanner.conf`
+- Renamed config file from `~/.scanline.conf` to `~/.config/scanner/scanner.conf`
 - Replaced all remaining "scanline" references in user-facing strings, README, and AGENTS.md
 
 ### Added

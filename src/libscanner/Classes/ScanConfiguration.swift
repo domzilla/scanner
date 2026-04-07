@@ -185,7 +185,7 @@ final class ScanConfiguration: Sendable {
 
     // MARK: - Private
 
-    private static let defaultConfigFilePath = "\(NSHomeDirectory())/.scanner.conf"
+    private static let defaultConfigFilePath = "\(NSHomeDirectory())/.config/scanner/scanner.conf"
 
     private static func parse(
         arguments: [String],
