@@ -31,7 +31,7 @@ enum CLI {
         }
 
         // Handle help
-        if args.contains("-help") || args.contains("--help") || args.contains("-h") {
+        if args.contains("--help") || args.contains("-h") {
             if self.listMode {
                 self.printListHelp()
             } else {
@@ -40,17 +40,17 @@ enum CLI {
             exit(0)
         }
 
-        // Extract -timeout before passing to ScanConfiguration
-        if let index = args.firstIndex(of: "-timeout") {
+        // Extract --timeout / -t before passing to ScanConfiguration
+        if let index = args.firstIndex(of: "--timeout") ?? args.firstIndex(of: "-t") {
             if index + 1 < args.count {
                 let value = args[index + 1]
                 guard let parsed = Double(value) else {
-                    self.exitWithError("Invalid value for '-timeout': '\(value)'")
+                    self.exitWithError("Invalid value for '--timeout': '\(value)'")
                 }
                 self.timeout = parsed
                 args.removeSubrange(index...index + 1)
             } else {
-                self.exitWithError("No value provided for option '-timeout'")
+                self.exitWithError("No value provided for option '--timeout'")
             }
         }
 
@@ -67,14 +67,14 @@ enum CLI {
 
     private static func printHelp() {
         print("Usage: scanner [options]")
-        print("       scanner list [-timeout N]")
+        print("       scanner list [--timeout N]")
         print("")
         print("Scan documents from a flatbed or document feeder and save to the current directory.")
         print("Config file: ~/.config/scanner/scanner.conf")
         print("")
 
         print("Commands:")
-        print("  list                List available scanners and exit (see 'scanner list -h')")
+        print("  list                  List available scanners and exit (see 'scanner list -h')")
         print("")
 
         self.printSection("Scanning", options: [
@@ -103,7 +103,7 @@ enum CLI {
 
         self.printSection("Scanner", options: [
             (.scanner, "Use a specific scanner by name (substring match)"),
-            (.exactName, "Require exact name match with -scanner"),
+            (.exactName, "Require exact name match with --scanner"),
         ])
 
         self.printSection("General", options: [
@@ -111,12 +111,12 @@ enum CLI {
         ])
 
         print("Examples:")
-        print("  scanner                              Scan to PDF in current directory")
-        print("  scanner -duplex                      Scan both sides")
-        print("  scanner -name invoice -format jpeg   Scan to invoice.jpg")
-        print("  scanner -input flatbed -color mono   Scan from flatbed in black and white")
-        print("  scanner list                         Show available scanners")
-        print("  scanner -size legal                  Scan a legal size page")
+        print("  scanner                                Scan to PDF in current directory")
+        print("  scanner --duplex                       Scan both sides")
+        print("  scanner --name invoice --format jpeg   Scan to invoice.jpg")
+        print("  scanner --input flatbed --color mono   Scan from flatbed in black and white")
+        print("  scanner list                           Show available scanners")
+        print("  scanner --size legal                   Scan a legal size page")
     }
 
     private static func printListHelp() {
@@ -125,18 +125,23 @@ enum CLI {
         print("List all available scanners and exit.")
         print("")
         print("Options:")
-        print("  -timeout            Scanner discovery timeout in seconds (default: 10)")
+        print("  -t, --timeout         Scanner discovery timeout in seconds (default: 10)")
         print("")
         print("Examples:")
         print("  scanner list                         List scanners")
-        print("  scanner list -timeout 15             Search for 15 seconds")
+        print("  scanner list --timeout 15            Search for 15 seconds")
     }
 
     private static func printSection(_ title: String, options: [(ConfigOption, String)]) {
         print("\(title):")
         for (option, description) in options {
-            let flag = "-\(option.rawValue)"
-            var line = "  \(flag.padding(toLength: 20, withPad: " ", startingAt: 0))\(description)"
+            let longFlag = "--\(option.rawValue)"
+            let flag = if let short = option.shortFlag {
+                "-\(short), \(longFlag)"
+            } else {
+                "    \(longFlag)"
+            }
+            var line = "  \(flag.padding(toLength: 22, withPad: " ", startingAt: 0))\(description)"
             if let defaultValue = option.defaultValue, option.validValues == nil {
                 line += " (default: \(defaultValue))"
             }

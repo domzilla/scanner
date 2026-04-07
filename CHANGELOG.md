@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Adopted standard POSIX/GNU flag convention: `--flag` for long options, `-x` for short options
+- Added single-letter short flags for most options (e.g. `-d` for `--duplex`, `-f` for `--format`)
+- Config file format updated to use `--flag` syntax (breaking change for existing config files)
+
 ### Fixed
 - Fixed empty PDF being created when no pages were scanned
 - Fixed `-h` flag not being recognized as help

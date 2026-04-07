@@ -19,7 +19,7 @@ struct OutputProcessorTests {
     func initStoresProperties() {
         let url1 = URL(fileURLWithPath: "/tmp/test1.jpg")
         let url2 = URL(fileURLWithPath: "/tmp/test2.jpg")
-        let config = makeConfig(["-format", "jpeg"])
+        let config = makeConfig(["--format", "jpeg"])
 
         let processor = OutputProcessor(urls: [url1, url2], configuration: config)
 
@@ -92,7 +92,7 @@ struct OutputProcessorTests {
     func outputSelectsPDFExtension() {
         let url = createTempJPEGFile()
         let outputDir = makeTempOutputDir()
-        let config = makeConfig(["-name", "test_pdf"])
+        let config = makeConfig(["--name", "test_pdf"])
         let processor = OutputProcessor(urls: [url], configuration: config)
 
         let savedCwd = FileManager.default.currentDirectoryPath
@@ -108,7 +108,7 @@ struct OutputProcessorTests {
     func outputSelectsJPEGExtension() {
         let url = createTempJPEGFile()
         let outputDir = makeTempOutputDir()
-        let config = makeConfig(["-format", "jpeg", "-name", "test_jpg"])
+        let config = makeConfig(["--format", "jpeg", "--name", "test_jpg"])
         let processor = OutputProcessor(urls: [url], configuration: config)
 
         let savedCwd = FileManager.default.currentDirectoryPath
@@ -124,7 +124,7 @@ struct OutputProcessorTests {
     func outputSelectsTIFFExtension() {
         let url = createTempJPEGFile()
         let outputDir = makeTempOutputDir()
-        let config = makeConfig(["-format", "tiff", "-name", "test_tif"])
+        let config = makeConfig(["--format", "tiff", "--name", "test_tif"])
         let processor = OutputProcessor(urls: [url], configuration: config)
 
         let savedCwd = FileManager.default.currentDirectoryPath
@@ -140,7 +140,7 @@ struct OutputProcessorTests {
     func outputSelectsPNGExtension() {
         let url = createTempPNGFile()
         let outputDir = makeTempOutputDir()
-        let config = makeConfig(["-format", "png", "-name", "test_png"])
+        let config = makeConfig(["--format", "png", "--name", "test_png"])
         let processor = OutputProcessor(urls: [url], configuration: config)
 
         let savedCwd = FileManager.default.currentDirectoryPath
@@ -158,7 +158,7 @@ struct OutputProcessorTests {
     func outputHandlesFileCollision() {
         let url = createTempJPEGFile()
         let outputDir = makeTempOutputDir()
-        let config = makeConfig(["-format", "jpeg", "-name", "collision_test"])
+        let config = makeConfig(["--format", "jpeg", "--name", "collision_test"])
         let processor = OutputProcessor(urls: [url], configuration: config)
 
         let savedCwd = FileManager.default.currentDirectoryPath
@@ -181,7 +181,7 @@ struct OutputProcessorTests {
     func outputUsesTimestampNameWhenNoNameSpecified() {
         let url = createTempJPEGFile()
         let outputDir = makeTempOutputDir()
-        let config = makeConfig(["-format", "jpeg"])
+        let config = makeConfig(["--format", "jpeg"])
         let processor = OutputProcessor(urls: [url], configuration: config)
 
         let savedCwd = FileManager.default.currentDirectoryPath
@@ -203,7 +203,7 @@ struct OutputProcessorTests {
     func processWithJPEGFormat() async {
         let url = createTempJPEGFile()
         let outputDir = makeTempOutputDir()
-        let config = makeConfig(["-format", "jpeg", "-name", "process_jpeg"])
+        let config = makeConfig(["--format", "jpeg", "--name", "process_jpeg"])
         let processor = OutputProcessor(urls: [url], configuration: config)
 
         let savedCwd = FileManager.default.currentDirectoryPath
@@ -220,7 +220,7 @@ struct OutputProcessorTests {
     func processWithPDFFormat() async {
         let url = createTempJPEGFile()
         let outputDir = makeTempOutputDir()
-        let config = makeConfig(["-name", "process_pdf"])
+        let config = makeConfig(["--name", "process_pdf"])
         let processor = OutputProcessor(urls: [url], configuration: config)
 
         let savedCwd = FileManager.default.currentDirectoryPath
@@ -238,7 +238,7 @@ struct OutputProcessorTests {
         let url1 = createTempJPEGFile()
         let url2 = createTempJPEGFile()
         let outputDir = makeTempOutputDir()
-        let config = makeConfig(["-name", "multipage"])
+        let config = makeConfig(["--name", "multipage"])
         let processor = OutputProcessor(urls: [url1, url2], configuration: config)
 
         let savedCwd = FileManager.default.currentDirectoryPath
@@ -256,7 +256,7 @@ struct OutputProcessorTests {
         let url1 = createTempJPEGFile()
         let url2 = createTempJPEGFile()
         let outputDir = makeTempOutputDir()
-        let config = makeConfig(["-format", "jpeg", "-name", "multi_jpg"])
+        let config = makeConfig(["--format", "jpeg", "--name", "multi_jpg"])
         let processor = OutputProcessor(urls: [url1, url2], configuration: config)
 
         let savedCwd = FileManager.default.currentDirectoryPath
@@ -274,7 +274,7 @@ struct OutputProcessorTests {
     func processWithRotation() async {
         let url = createTempJPEGFile()
         let outputDir = makeTempOutputDir()
-        let config = makeConfig(["-format", "jpeg", "-name", "rotated", "-rotate", "90"])
+        let config = makeConfig(["--format", "jpeg", "--name", "rotated", "--rotate", "90"])
         let processor = OutputProcessor(urls: [url], configuration: config)
 
         let savedCwd = FileManager.default.currentDirectoryPath
@@ -291,7 +291,7 @@ struct OutputProcessorTests {
     func processWithZeroRotationSkipsRotation() async {
         let url = createTempJPEGFile()
         let outputDir = makeTempOutputDir()
-        let config = makeConfig(["-format", "jpeg", "-name", "no_rotate"])
+        let config = makeConfig(["--format", "jpeg", "--name", "no_rotate"])
         let processor = OutputProcessor(urls: [url], configuration: config)
 
         let savedCwd = FileManager.default.currentDirectoryPath
@@ -308,7 +308,7 @@ struct OutputProcessorTests {
     func processWithPNGFormat() async {
         let url = createTempPNGFile()
         let outputDir = makeTempOutputDir()
-        let config = makeConfig(["-format", "png", "-name", "process_png"])
+        let config = makeConfig(["--format", "png", "--name", "process_png"])
         let processor = OutputProcessor(urls: [url], configuration: config)
 
         let savedCwd = FileManager.default.currentDirectoryPath
@@ -325,7 +325,7 @@ struct OutputProcessorTests {
     func processWithTIFFFormat() async {
         let url = createTempJPEGFile()
         let outputDir = makeTempOutputDir()
-        let config = makeConfig(["-format", "tiff", "-name", "process_tif"])
+        let config = makeConfig(["--format", "tiff", "--name", "process_tif"])
         let processor = OutputProcessor(urls: [url], configuration: config)
 
         let savedCwd = FileManager.default.currentDirectoryPath

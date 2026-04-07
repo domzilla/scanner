@@ -90,6 +90,50 @@ struct ConfigOptionTests {
     }
 
     @Test
+    func shortFlagValues() {
+        #expect(ConfigOption.input.shortFlag == "i")
+        #expect(ConfigOption.duplex.shortFlag == "d")
+        #expect(ConfigOption.batch.shortFlag == "b")
+        #expect(ConfigOption.format.shortFlag == "f")
+        #expect(ConfigOption.size.shortFlag == "s")
+        #expect(ConfigOption.color.shortFlag == "c")
+        #expect(ConfigOption.name.shortFlag == "n")
+        #expect(ConfigOption.verbose.shortFlag == "v")
+        #expect(ConfigOption.resolution.shortFlag == "r")
+        #expect(ConfigOption.exactName.shortFlag == "e")
+    }
+
+    @Test
+    func shortFlagNilForOptionsWithoutShortForm() {
+        #expect(ConfigOption.scanner.shortFlag == nil)
+        #expect(ConfigOption.rotate.shortFlag == nil)
+    }
+
+    @Test
+    func fromShortFlag() {
+        #expect(ConfigOption.from(shortFlag: "d") == .duplex)
+        #expect(ConfigOption.from(shortFlag: "f") == .format)
+        #expect(ConfigOption.from(shortFlag: "v") == .verbose)
+    }
+
+    @Test
+    func fromInvalidShortFlagReturnsNil() {
+        #expect(ConfigOption.from(shortFlag: "x") == nil)
+        #expect(ConfigOption.from(shortFlag: "z") == nil)
+    }
+
+    @Test
+    func shortFlagsAreUnique() {
+        var seen: [Character: ConfigOption] = [:]
+        for option in ConfigOption.allCases {
+            if let short = option.shortFlag {
+                #expect(seen[short] == nil, "Short flag -\(short) used by both \(seen[short]!) and \(option)")
+                seen[short] = option
+            }
+        }
+    }
+
+    @Test
     func descriptionIsNonEmpty() {
         for option in ConfigOption.allCases {
             #expect(!option.description.isEmpty, "\(option) should have a non-empty description")

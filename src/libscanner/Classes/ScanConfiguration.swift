@@ -91,8 +91,28 @@ enum ConfigOption: String, CaseIterable, Sendable {
         }
     }
 
+    var shortFlag: Character? {
+        switch self {
+        case .input: "i"
+        case .duplex: "d"
+        case .batch: "b"
+        case .format: "f"
+        case .size: "s"
+        case .color: "c"
+        case .name: "n"
+        case .verbose: "v"
+        case .resolution: "r"
+        case .exactName: "e"
+        default: nil
+        }
+    }
+
     static func from(key: String) -> ConfigOption? {
         ConfigOption(rawValue: key)
+    }
+
+    static func from(shortFlag: Character) -> ConfigOption? {
+        ConfigOption.allCases.first { $0.shortFlag == shortFlag }
     }
 }
 
@@ -180,31 +200,43 @@ final class ScanConfiguration: Sendable {
         while i < arguments.count {
             let arg = arguments[i]
 
-            if arg.hasPrefix("-") {
-                let key = String(arg.dropFirst())
-                if let option = ConfigOption.from(key: key) {
-                    switch option.type {
-                    case .string:
-                        if i + 1 < arguments.count {
-                            i += 1
-                            let rawValue = arguments[i]
-                            if let validValues = option.validValues {
-                                guard let canonical = validValues[rawValue] else {
-                                    let allowed = Set(validValues.values).sorted().joined(separator: ", ")
-                                    throw ConfigError.invalidValue(arg, allowed)
-                                }
-                                config[option] = .string(canonical)
-                            } else {
-                                config[option] = .string(rawValue)
-                            }
-                        } else {
-                            throw ConfigError.missingValue(arg)
-                        }
-                    case .flag:
-                        config[option] = .flag(true)
-                    }
+            if arg.hasPrefix("--") || arg.hasPrefix("-") {
+                let option: ConfigOption?
+                if arg.hasPrefix("--") {
+                    let key = String(arg.dropFirst(2))
+                    option = ConfigOption.from(key: key)
                 } else {
+                    let key = String(arg.dropFirst())
+                    if key.count == 1, let char = key.first {
+                        option = ConfigOption.from(shortFlag: char)
+                    } else {
+                        option = nil
+                    }
+                }
+
+                guard let option else {
                     throw ConfigError.unknownOption(arg)
+                }
+
+                switch option.type {
+                case .string:
+                    if i + 1 < arguments.count {
+                        i += 1
+                        let rawValue = arguments[i]
+                        if let validValues = option.validValues {
+                            guard let canonical = validValues[rawValue] else {
+                                let allowed = Set(validValues.values).sorted().joined(separator: ", ")
+                                throw ConfigError.invalidValue(arg, allowed)
+                            }
+                            config[option] = .string(canonical)
+                        } else {
+                            config[option] = .string(rawValue)
+                        }
+                    } else {
+                        throw ConfigError.missingValue(arg)
+                    }
+                case .flag:
+                    config[option] = .flag(true)
                 }
             } else if !arg.isEmpty {
                 throw ConfigError.unknownArgument(arg)

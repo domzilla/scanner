@@ -25,7 +25,7 @@ struct LoggerTests {
 
     @Test
     func verboseWithVerboseFlag() {
-        Logger.configuration = makeConfig(["-verbose"])
+        Logger.configuration = makeConfig(["--verbose"])
         Logger.verbose("test message")
     }
 
