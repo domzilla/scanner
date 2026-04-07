@@ -49,7 +49,9 @@ public class AppController: NSObject {
     }
 
     func exit(with code: ExitCode = .success) {
-        self.log("Done")
+        if code == .success {
+            self.log("Done")
+        }
         DispatchQueue.main.async {
             CFRunLoopStop(CFRunLoopGetCurrent())
             Darwin.exit(code.rawValue)
@@ -102,7 +104,6 @@ extension AppController: ScannerControllerDelegate {
     }
 
     func scannerControllerDidFail(_: ScannerController) {
-        self.log("Failed to scan document.")
         self.exit(with: .failure)
     }
 

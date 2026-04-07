@@ -100,6 +100,15 @@ class ScannerController: NSObject, @unchecked Sendable, ICScannerDeviceDelegate 
         // so we check its address instead.
         let address = unsafeBitCast(functionalUnit, to: Int.self)
         if address != 0x0, functionalUnit.type == self.desiredFunctionalUnitType {
+            if
+                let feeder = functionalUnit as? ICScannerFunctionalUnitDocumentFeeder,
+                !feeder.documentLoaded
+            {
+                self.log("No document loaded in feeder. Use '-input flatbed' to scan from the flatbed.")
+                self.delegate?.scannerControllerDidFail(self)
+                return
+            }
+
             self.configureScanner()
             self.log("Starting scan...")
             scanner.requestScan()
