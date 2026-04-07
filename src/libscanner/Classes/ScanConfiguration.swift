@@ -100,7 +100,7 @@ public enum ConfigOption: String, CaseIterable, Sendable {
         case .size: "s"
         case .color: "c"
         case .name: "n"
-        case .verbose: "v"
+        case .verbose: nil
         case .resolution: "r"
         case .exactName: "e"
         default: nil

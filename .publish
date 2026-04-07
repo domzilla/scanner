@@ -1,0 +1,15 @@
+---
+version_source: plist
+plist_path: src/scanner/Resources/Info.plist
+tag_prefix: v
+release_branch: master
+git_remotes:
+- origin
+- github
+publishers:
+- homebrew-tap
+post_publish_commands:
+- echo "Release {{version}} complete"
+homebrew-tap:
+  formula: scanner
+  tap_repo: domzilla/homebrew-tap

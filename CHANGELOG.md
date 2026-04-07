@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Print output file path after successful scan (e.g. `Saved to /path/to/scan.pdf`)
+- `--version` flag to print version and exit
+- Homebrew publish flow: GitHub Actions workflow builds bottles (arm64 + x86_64), creates GitHub releases, and auto-updates `domzilla/homebrew-tap` formula
+- `.publish` config for unified publish script integration
+
+### Removed
+- `-v` short flag for `--verbose` (use `--verbose` instead)
 
 ### Fixed
 - Suppressed CoreGraphics PDF framework noise (`CoreGraphics PDF has logged an error`) from stderr during PDF creation

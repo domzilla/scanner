@@ -27,6 +27,11 @@ enum CLI {
             }
         }
 
+        // Handle --version
+        if args.contains("--version") {
+            self.printVersionAndExit()
+        }
+
         // Handle help
         if args.contains("--help") || args.contains("-h") {
             if mode == .list {
@@ -58,6 +63,13 @@ enum CLI {
         } catch {
             self.exitWithError(ScanConfiguration.errorMessage(for: error))
         }
+    }
+
+    private static func printVersionAndExit() -> Never {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+        let data = Data("\(version)\n".utf8)
+        FileHandle.standardOutput.write(data)
+        exit(0)
     }
 
     static func exitWithError(_ message: String) -> Never {
@@ -142,8 +154,12 @@ enum CLI {
                 ]),
                 OptionGroupDTO(title: "General", parameters: [
                     ParameterInfoDTO(
-                        name: "--verbose", shortFlag: "-v", type: "flag", required: false,
+                        name: "--verbose", shortFlag: nil, type: "flag", required: false,
                         description: "Enable verbose logging"
+                    ),
+                    ParameterInfoDTO(
+                        name: "--version", shortFlag: nil, type: "flag", required: false,
+                        description: "Print version and exit"
                     ),
                 ]),
             ],

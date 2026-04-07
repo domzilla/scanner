@@ -98,13 +98,13 @@ struct ConfigOptionTests {
         #expect(ConfigOption.size.shortFlag == "s")
         #expect(ConfigOption.color.shortFlag == "c")
         #expect(ConfigOption.name.shortFlag == "n")
-        #expect(ConfigOption.verbose.shortFlag == "v")
         #expect(ConfigOption.resolution.shortFlag == "r")
         #expect(ConfigOption.exactName.shortFlag == "e")
     }
 
     @Test
     func shortFlagNilForOptionsWithoutShortForm() {
+        #expect(ConfigOption.verbose.shortFlag == nil)
         #expect(ConfigOption.scanner.shortFlag == nil)
         #expect(ConfigOption.rotate.shortFlag == nil)
     }
@@ -113,7 +113,7 @@ struct ConfigOptionTests {
     func fromShortFlag() {
         #expect(ConfigOption.from(shortFlag: "d") == .duplex)
         #expect(ConfigOption.from(shortFlag: "f") == .format)
-        #expect(ConfigOption.from(shortFlag: "v") == .verbose)
+        #expect(ConfigOption.from(shortFlag: "r") == .resolution)
     }
 
     @Test

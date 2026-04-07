@@ -1,0 +1,213 @@
+name: Homebrew Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-bottles:
+    name: Build ${{ matrix.os }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - os: macos
+            arch: arm64
+            runner: macos-26
+            bottle_tag: arm64_tahoe
+          - os: macos
+            arch: x86_64
+            runner: macos-26-intel
+            bottle_tag: tahoe
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Build release binary
+        run: |
+          cd src
+          xcodebuild -scheme scanner -configuration Release -derivedDataPath ../build -destination "platform=macOS" CODE_SIGN_IDENTITY="-" CODE_SIGNING_ALLOWED=NO MACOSX_DEPLOYMENT_TARGET=14.0 build
+
+      - name: Verify binary
+        run: ./build/Build/Products/Release/scanner --version
+
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Create bottle structure
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          BOTTLE_DIR="scanner/$VERSION"
+
+          # Create Homebrew-style directory structure
+          mkdir -p "$BOTTLE_DIR/bin"
+          cp build/Build/Products/Release/scanner "$BOTTLE_DIR/bin/"
+
+      - name: Create bottle tarball
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          BOTTLE_TAG=${{ matrix.bottle_tag }}
+
+          tar -czf "scanner-${VERSION}.${BOTTLE_TAG}.bottle.tar.gz" scanner
+
+          # Calculate SHA256
+          shasum -a 256 "scanner-${VERSION}.${BOTTLE_TAG}.bottle.tar.gz" > "scanner-${VERSION}.${BOTTLE_TAG}.bottle.tar.gz.sha256"
+
+      - name: Upload bottle artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: bottle-${{ matrix.bottle_tag }}
+          path: |
+            scanner-*.bottle.tar.gz
+            scanner-*.bottle.tar.gz.sha256
+
+  release:
+    name: Create Release
+    needs: build-bottles
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: bottles
+          merge-multiple: true
+
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: bottles/*
+          generate_release_notes: true
+          draft: false
+
+      - name: Prepare bottle info
+        id: bottles
+        run: |
+          cd bottles
+          echo "arm64_sha=$(cat scanner-${{ steps.version.outputs.version }}.arm64_tahoe.bottle.tar.gz.sha256 | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "x86_64_sha=$(cat scanner-${{ steps.version.outputs.version }}.tahoe.bottle.tar.gz.sha256 | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+
+      - name: Output bottle info
+        run: |
+          echo "## Bottle SHA256 Checksums" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Add this to your formula:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```ruby' >> $GITHUB_STEP_SUMMARY
+          echo "bottle do" >> $GITHUB_STEP_SUMMARY
+          echo '  root_url "https://github.com/domzilla/scanner/releases/download/${{ github.ref_name }}"' >> $GITHUB_STEP_SUMMARY
+          echo '  sha256 cellar: :any_skip_relocation, arm64_tahoe: "${{ steps.bottles.outputs.arm64_sha }}"' >> $GITHUB_STEP_SUMMARY
+          echo '  sha256 cellar: :any_skip_relocation, tahoe: "${{ steps.bottles.outputs.x86_64_sha }}"' >> $GITHUB_STEP_SUMMARY
+          echo "end" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  update-formula:
+    name: Update Homebrew Formula
+    needs: [build-bottles, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: bottles
+          merge-multiple: true
+
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Calculate source SHA256
+        id: source
+        run: |
+          curl -sL "https://github.com/domzilla/scanner/archive/refs/tags/${{ github.ref_name }}.tar.gz" -o source.tar.gz
+          echo "sha256=$(shasum -a 256 source.tar.gz | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+
+      - name: Get bottle SHA256s
+        id: bottles
+        run: |
+          cd bottles
+          echo "arm64_sha=$(cat scanner-${{ steps.version.outputs.version }}.arm64_tahoe.bottle.tar.gz.sha256 | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "x86_64_sha=$(cat scanner-${{ steps.version.outputs.version }}.tahoe.bottle.tar.gz.sha256 | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v5
+        with:
+          repository: domzilla/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update formula
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          TAG=${{ github.ref_name }}
+          SOURCE_SHA=${{ steps.source.outputs.sha256 }}
+          ARM64_SHA=${{ steps.bottles.outputs.arm64_sha }}
+          X86_64_SHA=${{ steps.bottles.outputs.x86_64_sha }}
+
+          cat > homebrew-tap/Formula/scanner.rb << 'FORMULA'
+          class Scanner < Formula
+            desc "macOS command-line document scanning utility"
+            homepage "https://github.com/domzilla/scanner"
+            url "https://github.com/domzilla/scanner/archive/refs/tags/TAG_PLACEHOLDER.tar.gz"
+            sha256 "SOURCE_SHA_PLACEHOLDER"
+            license "MIT"
+            head "https://github.com/domzilla/scanner.git", branch: "master"
+
+            bottle do
+              root_url "https://github.com/domzilla/scanner/releases/download/TAG_PLACEHOLDER"
+              sha256 cellar: :any_skip_relocation, arm64_tahoe: "ARM64_SHA_PLACEHOLDER"
+              sha256 cellar: :any_skip_relocation, tahoe: "X86_64_SHA_PLACEHOLDER"
+            end
+
+            depends_on xcode: ["14.0", :build]
+            depends_on :macos
+
+            def install
+              cd "src" do
+                system "xcodebuild", "-scheme", "scanner",
+                       "-configuration", "Release",
+                       "-derivedDataPath", buildpath/"build",
+                       "-destination", "platform=macOS",
+                       "CODE_SIGN_IDENTITY=-",
+                       "CODE_SIGNING_ALLOWED=NO",
+                       "MACOSX_DEPLOYMENT_TARGET=14.0",
+                       "build"
+              end
+              bin.install buildpath/"build/Build/Products/Release/scanner"
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/scanner --version")
+            end
+          end
+          FORMULA
+
+          # Replace placeholders
+          sed -i "s|TAG_PLACEHOLDER|${TAG}|g" homebrew-tap/Formula/scanner.rb
+          sed -i "s|SOURCE_SHA_PLACEHOLDER|${SOURCE_SHA}|g" homebrew-tap/Formula/scanner.rb
+          sed -i "s|ARM64_SHA_PLACEHOLDER|${ARM64_SHA}|g" homebrew-tap/Formula/scanner.rb
+          sed -i "s|X86_64_SHA_PLACEHOLDER|${X86_64_SHA}|g" homebrew-tap/Formula/scanner.rb
+
+      - name: Commit and push formula
+        run: |
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/scanner.rb
+          git commit -m "Update scanner to ${{ steps.version.outputs.version }}"
+          git push
