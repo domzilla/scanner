@@ -5,7 +5,7 @@ tag_prefix: v
 release_branch: master
 git_remotes:
 - origin
-- github
+- github.com
 publishers:
 - homebrew-tap
 post_publish_commands:
