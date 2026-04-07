@@ -3,15 +3,6 @@
 ## Project Overview
 **scanner** is a macOS command-line document scanning utility built on the ImageCaptureCore framework.
 
-### Architecture
-- **libscanner** (static framework) — All business logic, linked by both the `scanner` executable and `libscannerTests`
-- **ScanConfiguration** — CLI argument parsing, config file loading (`~/.config/scanner/scanner.conf`), option synonyms, three-layer precedence (defaults → file → CLI args)
-- **ScannerBrowser** — Scanner discovery via `ICDeviceBrowser`, fuzzy/exact name matching, delegate-based callbacks
-- **ScannerController** — Scanner session management, functional unit selection (flatbed/feeder), scan parameter configuration (resolution, color, format, duplex, page size), batch mode
-- **OutputProcessor** — Post-processing pipeline: OCR (Vision), image rotation (CoreImage), PDF combining (Quartz/PDFKit), file output to CWD with timestamp-based naming (`scan_YYYYMMDD-HHmmss`)
-- **AppController** — Main orchestrator coordinating browser → controller → output flow with CFRunLoop lifecycle
-- **Logger** — Three levels: `verbose()` (runtime, respects `-verbose` flag), `debug()`/`error()` (stderr, no-op in release builds)
-
 ## Tech Stack
 - **Language**: Swift 6
 - **IDE**: Xcode
