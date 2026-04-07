@@ -3,10 +3,11 @@ id: '260404-0ZSX5G7'
 title: Update README
 author: Dominic Rodemer
 created_at: '2026-04-04T09:02:53.952353Z'
-status: open
+status: closed
 labels:
 - task
 ---
+
 
 The README needs to be updated to reflect the current state of the project after the Swift 6 rewrite.
 

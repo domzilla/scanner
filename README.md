@@ -1,40 +1,112 @@
-scanner
-========
+# scanner
 
-scanner is a command-line scanning utility for macOS. It was originally built for a quirky archiving system, where every document (bills, tax forms, etc.) is scanned and categorized into folders. Rather than use a traditional scanning program that requires time consuming pointing and clicking, scanner lets you easily scan from a command prompt.
+A command-line document scanning utility for macOS, built on the ImageCaptureCore framework.
 
-scanner supports many different purposes and options. Some of the things you can do with scanner are:
+scanner lets you scan documents directly from the terminal — no GUI required. It supports document feeders and flatbed scanners, multiple output formats, duplex scanning, batch mode, and more.
 
-* Run scanner as part of a script
-* Scan batches of documents
-* Scan from the document feeder or flatbed
-* Scan in various formats, sizes, and modes all driven from command line options
-* Provide defaults in a config file (~/.config/scanner/scanner.conf)
-
-
-Here are some example command lines:
-
-```
-scanner -duplex taxes
-scanner -flatbed -jpeg photo
-```
-   
-You can see all of scanner's options by typing:
-
-```
-scanner -help
-```
-
-## Building scanner
+## Installation
 
 ```bash
-xcodebuild -scheme "scanner" -destination "platform=macOS" build
+brew tap domzilla/homebrew-tap
+brew install scanner
 ```
 
-## libscanner
+## Usage
 
-scanner is structured with a static library (libscanner) that contains all core logic, and a separate command-line target that links against it. libscanner can be embedded in any application that wants to support scanner's functionality.
+```bash
+scanner [options]
+scanner list [options]
+```
 
-## Contributing to scanner
+Scanned files are saved to the current directory.
 
-If you're interested in making a change, fix, or enhancement to scanner, please do! I'd appreciate a heads up on any bigger changes, and I'm happy to review any PRs.
+### Examples
+
+```bash
+# Scan a document to PDF (default)
+scanner
+
+# Scan both sides of each page
+scanner --duplex
+
+# Scan to JPEG with a custom filename
+scanner --name invoice --format jpeg
+
+# Scan from the flatbed in black and white
+scanner --input flatbed --color mono
+
+# Scan a legal-size page at 300 dpi
+scanner --size legal --resolution 300
+
+# Batch mode — pause after each page for more
+scanner --batch
+
+# List available scanners
+scanner list
+```
+
+### Options
+
+#### Scanning
+| Flag | Description |
+|---|---|
+| `-i`, `--input <source>` | Scan source: `feeder` (default), `flatbed` |
+| `-d`, `--duplex` | Scan both sides of each page |
+| `-b`, `--batch` | Pause after each page to allow additional pages |
+
+#### Output Format
+| Flag | Description |
+|---|---|
+| `-f`, `--format <format>` | File format: `pdf` (default), `jpeg`, `tiff`, `png` |
+
+#### Page Size
+| Flag | Description |
+|---|---|
+| `-s`, `--size <size>` | Page size: `a4` (default), `letter`, `legal` |
+
+#### Image
+| Flag | Description |
+|---|---|
+| `-c`, `--color <mode>` | Color mode: `color` (default), `mono` |
+| `-r`, `--resolution <dpi>` | Minimum resolution in dpi (default: 150) |
+| `--rotate <degrees>` | Rotate scanned images by degrees (default: 0) |
+
+#### Output
+| Flag | Description |
+|---|---|
+| `-n`, `--name <name>` | Custom filename (without extension) |
+
+#### Scanner
+| Flag | Description |
+|---|---|
+| `--scanner <name>` | Use a specific scanner by name (substring match) |
+| `-e`, `--exactname` | Require exact name match with `--scanner` |
+
+#### General
+| Flag | Description |
+|---|---|
+| `--verbose` | Enable verbose logging |
+| `--version` | Print version and exit |
+
+### Config File
+
+Default options can be set in `~/.config/scanner/scanner.conf`, one flag per line:
+
+```
+--format jpeg
+--resolution 300
+--size letter
+```
+
+CLI arguments override config file values.
+
+## Building
+
+```bash
+cd src
+xcodebuild -scheme scanner -destination "platform=macOS" build
+```
+
+## License
+
+MIT

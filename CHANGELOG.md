@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--version` flag to print version and exit
 - Homebrew publish flow: GitHub Actions workflow builds bottles (arm64 + x86_64), creates GitHub releases, and auto-updates `domzilla/homebrew-tap` formula
 - `.publish` config for unified publish script integration
+- Rewrote README with installation, usage, options reference, config file docs, and build instructions
 
 ### Removed
 - `-v` short flag for `--verbose` (use `--verbose` instead)
