@@ -14,7 +14,7 @@ The README needs to be updated to reflect the current state of the project after
 
 - Rewrite README to accurately describe the `scanner` CLI tool
 - Document installation instructions
-- Document usage examples (basic scan, PDF output, OCR, batch/duplex, config file)
+- Document usage examples (basic scan, PDF output, batch/duplex, config file)
 - Document all supported output formats (PDF, JPEG, TIFF, PNG)
 - Document `~/.scanner.conf` configuration file
 - Add examples for common workflows
