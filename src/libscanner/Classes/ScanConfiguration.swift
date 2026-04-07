@@ -14,7 +14,6 @@ enum ConfigOption: String, CaseIterable, Sendable {
     case input
     case duplex
     case batch
-    case list
     case format
     case size
     case color
@@ -23,13 +22,12 @@ enum ConfigOption: String, CaseIterable, Sendable {
     case verbose
     case scanner
     case resolution
-    case browseSecs = "browsesecs"
     case exactName = "exactname"
     case rotate
 
     var type: ConfigOptionType {
         switch self {
-        case .name, .scanner, .resolution, .browseSecs, .rotate,
+        case .name, .scanner, .resolution, .rotate,
              .input, .format, .size, .color:
             .string
         default:
@@ -44,7 +42,6 @@ enum ConfigOption: String, CaseIterable, Sendable {
         case .size: "a4"
         case .color: "color"
         case .resolution: "150"
-        case .browseSecs: "10"
         case .rotate: "0"
         default: nil
         }
@@ -74,8 +71,6 @@ enum ConfigOption: String, CaseIterable, Sendable {
             "Duplex (two-sided) scanning mode, for scanners that support it."
         case .batch:
             "scanner will pause after each page, allowing you to continue to scan additional pages until you say you're done."
-        case .list:
-            "List all available scanners, then exit."
         case .format:
             "Output format: pdf (default), jpeg, tiff, png"
         case .size:
@@ -89,11 +84,9 @@ enum ConfigOption: String, CaseIterable, Sendable {
         case .verbose:
             "Provide verbose logging."
         case .scanner:
-            "Specify which scanner to use (use -list to list available scanners)."
+            "Specify which scanner to use."
         case .resolution:
             "Specify minimum resolution at which to scan (in dpi)"
-        case .browseSecs:
-            "Specify how long to wait when searching for scanners (in seconds)"
         case .exactName:
             "When specified, only the scanner with the exact name specified will be used (no fuzzy matching)"
         case .rotate:
@@ -156,7 +149,7 @@ final class ScanConfiguration: Sendable {
         do {
             try ScanConfiguration.parse(arguments: arguments, into: &config)
         } catch {
-            Self.exitWithError(error)
+            CLI.exitWithError(Self.errorMessage(for: error))
         }
 
         self.config = config
@@ -178,7 +171,7 @@ final class ScanConfiguration: Sendable {
         return nil
     }
 
-    // MARK: - Private
+    // MARK: - Parsing
 
     private static let defaultConfigFilePath = "\(NSHomeDirectory())/.config/scanner/scanner.conf"
 
@@ -190,10 +183,7 @@ final class ScanConfiguration: Sendable {
         while i < arguments.count {
             let arg = arguments[i]
 
-            if arg == "-help" || arg == "--help" || arg == "-h" {
-                self.printHelp()
-                exit(0)
-            } else if arg.hasPrefix("-") {
+            if arg.hasPrefix("-") {
                 let key = String(arg.dropFirst())
                 if let option = ConfigOption.from(key: key) {
                     switch option.type {
@@ -227,8 +217,8 @@ final class ScanConfiguration: Sendable {
         }
     }
 
-    private static func exitWithError(_ error: Error) -> Never {
-        let message: String = switch error {
+    static func errorMessage(for error: Error) -> String {
+        switch error {
         case let ConfigError.unknownOption(arg):
             "Unknown option '\(arg)'"
         case let ConfigError.unknownArgument(arg):
@@ -240,73 +230,5 @@ final class ScanConfiguration: Sendable {
         default:
             error.localizedDescription
         }
-        fputs("Error: \(message)\n", stderr)
-        fputs("Run 'scanner -h' for usage information.\n", stderr)
-        exit(1)
-    }
-
-    private static func printHelp() {
-        print("Usage: scanner [options]")
-        print("")
-        print("Scan documents from a flatbed or document feeder and save to the current directory.")
-        print("Config file: ~/.config/scanner/scanner.conf")
-        print("")
-
-        self.printSection("Scanning", options: [
-            (.input, "Scan source [feeder, flatbed] (default: feeder)"),
-            (.duplex, "Scan both sides of each page"),
-            (.batch, "Pause after each page to allow additional pages"),
-        ])
-
-        self.printSection("Output Format", options: [
-            (.format, "File format [pdf, jpeg, tiff, png] (default: pdf)"),
-        ])
-
-        self.printSection("Page Size", options: [
-            (.size, "Page size [a4, letter, legal] (default: a4)"),
-        ])
-
-        self.printSection("Image", options: [
-            (.color, "Color mode [color, mono] (default: color)"),
-            (.resolution, "Minimum resolution in dpi"),
-            (.rotate, "Rotate scanned images by degrees"),
-        ])
-
-        self.printSection("Output", options: [
-            (.name, "Custom filename (without extension)"),
-            (.open, "Open the file after scanning"),
-        ])
-
-        self.printSection("Scanner Selection", options: [
-            (.list, "List available scanners and exit"),
-            (.scanner, "Use a specific scanner by name (substring match)"),
-            (.exactName, "Require exact name match with -scanner"),
-            (.browseSecs, "Scanner discovery timeout in seconds"),
-        ])
-
-        self.printSection("General", options: [
-            (.verbose, "Enable verbose logging"),
-        ])
-
-        print("Examples:")
-        print("  scanner                              Scan to PDF in current directory")
-        print("  scanner -duplex                      Scan both sides")
-        print("  scanner -name invoice -format jpeg   Scan to invoice.jpg")
-        print("  scanner -input flatbed -color mono   Scan from flatbed in black and white")
-        print("  scanner -list                        Show available scanners")
-        print("  scanner -size legal                  Scan a legal size page")
-    }
-
-    private static func printSection(_ title: String, options: [(ConfigOption, String)]) {
-        print("\(title):")
-        for (option, description) in options {
-            let flag = "-\(option.rawValue)"
-            var line = "  \(flag.padding(toLength: 20, withPad: " ", startingAt: 0))\(description)"
-            if let defaultValue = option.defaultValue, option.validValues == nil {
-                line += " (default: \(defaultValue))"
-            }
-            print(line)
-        }
-        print("")
     }
 }

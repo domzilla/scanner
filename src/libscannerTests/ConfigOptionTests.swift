@@ -16,7 +16,6 @@ struct ConfigOptionTests {
         #expect(ConfigOption.from(key: "input") == .input)
         #expect(ConfigOption.from(key: "duplex") == .duplex)
         #expect(ConfigOption.from(key: "batch") == .batch)
-        #expect(ConfigOption.from(key: "list") == .list)
         #expect(ConfigOption.from(key: "format") == .format)
         #expect(ConfigOption.from(key: "size") == .size)
         #expect(ConfigOption.from(key: "color") == .color)
@@ -25,7 +24,6 @@ struct ConfigOptionTests {
         #expect(ConfigOption.from(key: "verbose") == .verbose)
         #expect(ConfigOption.from(key: "scanner") == .scanner)
         #expect(ConfigOption.from(key: "resolution") == .resolution)
-        #expect(ConfigOption.from(key: "browsesecs") == .browseSecs)
         #expect(ConfigOption.from(key: "exactname") == .exactName)
 
         #expect(ConfigOption.from(key: "rotate") == .rotate)
@@ -46,7 +44,7 @@ struct ConfigOptionTests {
     @Test
     func typePropertyForFlags() {
         let flagOptions: [ConfigOption] = [
-            .duplex, .batch, .list, .open, .verbose, .exactName,
+            .duplex, .batch, .open, .verbose, .exactName,
         ]
         for option in flagOptions {
             #expect(option.type == .flag, "Expected \(option) to be .flag")
@@ -57,7 +55,7 @@ struct ConfigOptionTests {
     func typePropertyForStrings() {
         let stringOptions: [ConfigOption] = [
             .input, .format, .size, .color,
-            .name, .scanner, .resolution, .browseSecs, .rotate,
+            .name, .scanner, .resolution, .rotate,
         ]
         for option in stringOptions {
             #expect(option.type == .string, "Expected \(option) to be .string")
@@ -71,14 +69,14 @@ struct ConfigOptionTests {
         #expect(ConfigOption.size.defaultValue == "a4")
         #expect(ConfigOption.color.defaultValue == "color")
         #expect(ConfigOption.resolution.defaultValue == "150")
-        #expect(ConfigOption.browseSecs.defaultValue == "10")
+
         #expect(ConfigOption.rotate.defaultValue == "0")
     }
 
     @Test
     func noDefaultValueForFlagsAndFreeformStrings() {
         let noDefaultOptions: [ConfigOption] = [
-            .duplex, .batch, .list, .open, .verbose, .exactName,
+            .duplex, .batch, .open, .verbose, .exactName,
             .name, .scanner,
         ]
         for option in noDefaultOptions {
@@ -88,7 +86,7 @@ struct ConfigOptionTests {
 
     @Test
     func allCasesCount() {
-        #expect(ConfigOption.allCases.count == 15)
+        #expect(ConfigOption.allCases.count == 13)
     }
 
     @Test
@@ -111,7 +109,6 @@ struct ConfigOptionTests {
         #expect(ConfigOption.name.validValues == nil)
         #expect(ConfigOption.scanner.validValues == nil)
         #expect(ConfigOption.resolution.validValues == nil)
-        #expect(ConfigOption.browseSecs.validValues == nil)
         #expect(ConfigOption.rotate.validValues == nil)
     }
 }

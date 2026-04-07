@@ -27,7 +27,7 @@ public class AppController: NSObject {
     private let scannerBrowser: ScannerBrowser
 
     public init(arguments: [String]) {
-        self.configuration = ScanConfiguration(arguments: Array(arguments.dropFirst()))
+        self.configuration = CLI.parseArguments(Array(arguments.dropFirst()))
         self.scannerBrowser = ScannerBrowser(configuration: self.configuration)
 
         super.init()
@@ -39,7 +39,7 @@ public class AppController: NSObject {
     public func go() {
         self.scannerBrowser.browse()
 
-        let timerExpiration = Double(self.configuration.string(.browseSecs) ?? "10") ?? 10.0
+        let timerExpiration = CLI.timeout
         self.scannerBrowserTimer = Timer
             .scheduledTimer(withTimeInterval: timerExpiration, repeats: false) { [weak self] _ in
                 self?.scannerBrowser.stopBrowsing()
@@ -77,7 +77,7 @@ extension AppController: ScannerBrowserDelegate {
         self.scannerBrowserTimer?.invalidate()
         self.scannerBrowserTimer = nil
 
-        guard !self.configuration.flag(.list) else {
+        guard !CLI.listMode else {
             self.exit(with: .success)
             return
         }

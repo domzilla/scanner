@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced mutually exclusive flags with enum options: `-input [feeder|flatbed]`, `-format [pdf|jpeg|tiff|png]`, `-size [a4|letter|legal]`, `-color [color|mono]`
 - Removed all option synonyms (e.g. `-dup`, `-fb`, `-jpg`, `-bw`, `-v`, `-s`, `-res`, `-t`)
 - Default page size changed from US Letter to A4
+- `-list` is now a `list` subcommand (e.g. `scanner list`)
+- `-browsesecs` renamed to `-timeout`, moved from scan config to CLI
+- Extracted CLI argument parsing, help output, and subcommand handling into `CLI.swift`
+- `-scanner` matching changed from prefix to case-insensitive substring
+- Check document feeder has paper loaded before scanning; fail with actionable message if empty
+- "Done" only printed on successful exit; removed redundant "Failed to scan document." message
 
 ### Added
 - Complete Swift 6 rewrite under `src/scanner/` with filesystem-synced Xcode project

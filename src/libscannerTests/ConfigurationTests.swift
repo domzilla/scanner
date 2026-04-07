@@ -77,12 +77,6 @@ struct ConfigurationTests {
     }
 
     @Test
-    func defaultBrowseSecs() {
-        let config = makeConfig([])
-        #expect(config.string(.browseSecs) == "10")
-    }
-
-    @Test
     func defaultRotate() {
         let config = makeConfig([])
         #expect(config.string(.rotate) == "0")
@@ -97,9 +91,8 @@ struct ConfigurationTests {
 
     @Test
     func defaultsOverriddenByCLI() {
-        let config = makeConfig(["-resolution", "600", "-browsesecs", "20", "-rotate", "90"])
+        let config = makeConfig(["-resolution", "600", "-rotate", "90"])
         #expect(config.string(.resolution) == "600")
-        #expect(config.string(.browseSecs) == "20")
         #expect(config.string(.rotate) == "90")
     }
 
@@ -110,7 +103,6 @@ struct ConfigurationTests {
         let flags: [(String, ConfigOption)] = [
             ("-duplex", .duplex),
             ("-batch", .batch),
-            ("-list", .list),
             ("-open", .open),
             ("-verbose", .verbose),
             ("-exactname", .exactName),
@@ -125,7 +117,7 @@ struct ConfigurationTests {
     func unsetFlagsAreFalse() {
         let config = makeConfig([])
         let allFlags: [ConfigOption] = [
-            .duplex, .batch, .list, .open, .verbose, .exactName,
+            .duplex, .batch, .open, .verbose, .exactName,
         ]
         for option in allFlags {
             #expect(config.flag(option) == false, "\(option) should be false by default")
@@ -137,7 +129,7 @@ struct ConfigurationTests {
         let config = makeConfig(["-name", "test", "-resolution", "300"])
         #expect(config.flag(.name) == false)
         #expect(config.flag(.resolution) == false)
-        #expect(config.flag(.browseSecs) == false)
+        #expect(config.flag(.rotate) == false)
         #expect(config.flag(.rotate) == false)
         #expect(config.flag(.scanner) == false)
     }
@@ -149,7 +141,7 @@ struct ConfigurationTests {
         #expect(config.flag(.verbose) == true)
         #expect(config.flag(.open) == true)
         #expect(config.flag(.batch) == false)
-        #expect(config.flag(.list) == false)
+        #expect(config.flag(.batch) == false)
     }
 
     // MARK: - Enum Options
@@ -242,12 +234,6 @@ struct ConfigurationTests {
     func resolutionOption() {
         let config = makeConfig(["-resolution", "300"])
         #expect(config.string(.resolution) == "300")
-    }
-
-    @Test
-    func browseSecsOption() {
-        let config = makeConfig(["-browsesecs", "5"])
-        #expect(config.string(.browseSecs) == "5")
     }
 
     @Test
@@ -360,11 +346,10 @@ struct ConfigurationTests {
 
     @Test
     func fullThreeLayerPrecedence() {
-        let path = makeTempConfigFile(contents: "-resolution\n300\n-browsesecs\n5\n")
+        let path = makeTempConfigFile(contents: "-resolution\n300\n-rotate\n45\n")
         let config = ScanConfiguration(arguments: ["-resolution", "600"], configFilePath: path)
         #expect(config.string(.resolution) == "600")
-        #expect(config.string(.browseSecs) == "5")
-        #expect(config.string(.rotate) == "0")
+        #expect(config.string(.rotate) == "45")
     }
 
     @Test
