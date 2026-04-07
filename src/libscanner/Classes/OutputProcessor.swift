@@ -144,6 +144,8 @@ class OutputProcessor: @unchecked Sendable {
             self.log("Error while copying file to \(destinationURL.absoluteString)")
             return
         }
+
+        self.log("Saved to \(destinationFilePath)")
     }
 
     // MARK: - Helpers

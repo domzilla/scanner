@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Print output file path after successful scan (e.g. `Saved to /path/to/scan.pdf`)
+
 ### Fixed
 - Suppressed CoreGraphics PDF framework noise (`CoreGraphics PDF has logged an error`) from stderr during PDF creation
 
