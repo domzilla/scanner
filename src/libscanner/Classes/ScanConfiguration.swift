@@ -279,8 +279,8 @@ final class ScanConfiguration: Sendable {
 
         self.printSection("Scanner Selection", options: [
             (.list, "List available scanners and exit"),
-            (.scanner, "Use a specific scanner by name"),
-            (.exactName, "Require exact scanner name match"),
+            (.scanner, "Use a specific scanner by name (substring match)"),
+            (.exactName, "Require exact name match with -scanner"),
             (.browseSecs, "Scanner discovery timeout in seconds"),
         ])
 

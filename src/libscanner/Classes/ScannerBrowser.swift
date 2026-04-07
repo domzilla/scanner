@@ -98,10 +98,10 @@ class ScannerBrowser: NSObject, ICDeviceBrowserDelegate {
         }
         guard let deviceName = device.name else { return false }
 
-        // Fuzzy match: case-insensitive prefix
+        // Fuzzy match: case-insensitive substring
         if
             !self.configuration.flag(.exactName),
-            deviceName.lowercased().hasPrefix(desiredName.lowercased())
+            deviceName.localizedCaseInsensitiveContains(desiredName)
         {
             return true
         }
