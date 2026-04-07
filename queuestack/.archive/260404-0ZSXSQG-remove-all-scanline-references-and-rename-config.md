@@ -3,10 +3,11 @@ id: '260404-0ZSXSQG'
 title: Remove all scanline references and rename config files
 author: Dominic Rodemer
 created_at: '2026-04-04T09:02:53.512537Z'
-status: open
+status: closed
 labels:
 - refactoring
 ---
+
 
 The project was originally called "scanline" and has been renamed to "scanner". There are still leftover references to the old name throughout the codebase.
 

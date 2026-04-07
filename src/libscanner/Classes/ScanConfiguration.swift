@@ -71,7 +71,7 @@ enum ConfigOption: String, CaseIterable, Sendable {
         case .duplex:
             "Duplex (two-sided) scanning mode, for scanners that support it."
         case .batch:
-            "scanline will pause after each page, allowing you to continue to scan additional pages until you say you're done."
+            "scanner will pause after each page, allowing you to continue to scan additional pages until you say you're done."
         case .list:
             "List all available scanners, then exit."
         case .flatbed:
@@ -185,7 +185,7 @@ final class ScanConfiguration: Sendable {
 
     // MARK: - Private
 
-    private static let defaultConfigFilePath = "\(NSHomeDirectory())/.scanline.conf"
+    private static let defaultConfigFilePath = "\(NSHomeDirectory())/.scanner.conf"
 
     private static func parse(
         arguments: [String],

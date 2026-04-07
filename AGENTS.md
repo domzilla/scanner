@@ -1,11 +1,11 @@
 # scanner - AGENTS.md
 
 ## Project Overview
-**scanner** is a macOS command-line document scanning utility built on the ImageCaptureCore framework. It scans documents from flatbed or document feeder, outputs to PDF/JPEG/TIFF/PNG to the current working directory, and supports OCR, batch scanning, duplex, rotation, and configurable defaults via `~/.scanline.conf`.
+**scanner** is a macOS command-line document scanning utility built on the ImageCaptureCore framework. It scans documents from flatbed or document feeder, outputs to PDF/JPEG/TIFF/PNG to the current working directory, and supports OCR, batch scanning, duplex, rotation, and configurable defaults via `~/.scanner.conf`.
 
 ### Architecture
 - **libscanner** (static framework) — All business logic, linked by both the `scanner` executable and `libscannerTests`
-- **ScanConfiguration** — CLI argument parsing, config file loading (`~/.scanline.conf`), option synonyms, three-layer precedence (defaults → file → CLI args)
+- **ScanConfiguration** — CLI argument parsing, config file loading (`~/.scanner.conf`), option synonyms, three-layer precedence (defaults → file → CLI args)
 - **ScannerBrowser** — Scanner discovery via `ICDeviceBrowser`, fuzzy/exact name matching, delegate-based callbacks
 - **ScannerController** — Scanner session management, functional unit selection (flatbed/feeder), scan parameter configuration (resolution, color, format, duplex, page size), batch mode
 - **OutputProcessor** — Post-processing pipeline: OCR (Vision), image rotation (CoreImage), PDF combining (Quartz/PDFKit), file output to CWD with timestamp-based naming (`scan_YYYYMMDD-HHmmss`)

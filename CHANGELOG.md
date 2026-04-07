@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Renamed config file from `~/.scanline.conf` to `~/.scanner.conf`
+- Replaced all remaining "scanline" references in user-facing strings, README, and AGENTS.md
+
 ### Added
 - Complete Swift 6 rewrite under `src/scanner/` with filesystem-synced Xcode project
 - `ScanConfiguration` — Pure Swift config with type-safe `ConfigOption` enum replacing Objective-C `ScanConfiguration.h/m`
