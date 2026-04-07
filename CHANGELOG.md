@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Suppressed CoreGraphics PDF framework noise (`CoreGraphics PDF has logged an error`) from stderr during PDF creation
+
 ### Changed
 - Refactored help output to data-driven architecture with `HelpFormatter` and DTOs (`HelpCommandDTO`, `CommandInfoDTO`, `ParameterInfoDTO`, `OptionGroupDTO`, `ExampleDTO`, `OutputInfoDTO`), matching the `events` CLI formatting style
 - Help output now uses dynamic column alignment per section instead of fixed-width padding

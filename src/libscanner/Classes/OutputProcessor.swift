@@ -54,18 +54,21 @@ class OutputProcessor: @unchecked Sendable {
     // MARK: - PDF Combining
 
     func combine(urls: [URL]) -> URL? {
-        let document = PDFDocument()
+        // Suppress CoreGraphics framework noise written to stderr during PDF operations
+        self.suppressingStderr {
+            let document = PDFDocument()
 
-        for url in urls {
-            if let page = PDFPage(image: NSImage(byReferencing: url)) {
-                document.insert(page, at: document.pageCount)
+            for url in urls {
+                if let page = PDFPage(image: NSImage(byReferencing: url)) {
+                    document.insert(page, at: document.pageCount)
+                }
             }
+
+            let tempFilePath = "\(NSTemporaryDirectory())/scan.pdf"
+            document.write(toFile: tempFilePath)
+
+            return URL(fileURLWithPath: tempFilePath)
         }
-
-        let tempFilePath = "\(NSTemporaryDirectory())/scan.pdf"
-        document.write(toFile: tempFilePath)
-
-        return URL(fileURLWithPath: tempFilePath)
     }
 
     // MARK: - Image Rotation
@@ -144,6 +147,17 @@ class OutputProcessor: @unchecked Sendable {
     }
 
     // MARK: - Helpers
+
+    private func suppressingStderr<T>(_ body: () -> T) -> T {
+        let originalStderr = dup(STDERR_FILENO)
+        let devNull = open("/dev/null", O_WRONLY)
+        dup2(devNull, STDERR_FILENO)
+        close(devNull)
+        let result = body()
+        dup2(originalStderr, STDERR_FILENO)
+        close(originalStderr)
+        return result
+    }
 
     private var defaultFilename: String {
         let formatter = DateFormatter()
