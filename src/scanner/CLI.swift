@@ -30,11 +30,10 @@ enum CLI {
         // Handle help
         if args.contains("--help") || args.contains("-h") {
             if mode == .list {
-                self.printListHelp()
+                self.handleCommandHelp("list")
             } else {
-                self.printHelp()
+                self.handleMainHelp()
             }
-            exit(0)
         }
 
         // Extract --timeout / -t before passing to ScanConfiguration
@@ -69,88 +68,140 @@ enum CLI {
 
     // MARK: - Help
 
-    private static func printHelp() {
-        print("Usage: scanner [options]")
-        print("       scanner list [--timeout N]")
-        print("")
-        print("Scan documents from a flatbed or document feeder and save to the current directory.")
-        print("Config file: ~/.config/scanner/scanner.conf")
-        print("")
-
-        print("Commands:")
-        print("  list                  List available scanners and exit (see 'scanner list -h')")
-        print("")
-
-        self.printSection("Scanning", options: [
-            (.input, "Scan source [feeder, flatbed] (default: feeder)"),
-            (.duplex, "Scan both sides of each page"),
-            (.batch, "Pause after each page to allow additional pages"),
-        ])
-
-        self.printSection("Output Format", options: [
-            (.format, "File format [pdf, jpeg, tiff, png] (default: pdf)"),
-        ])
-
-        self.printSection("Page Size", options: [
-            (.size, "Page size [a4, letter, legal] (default: a4)"),
-        ])
-
-        self.printSection("Image", options: [
-            (.color, "Color mode [color, mono] (default: color)"),
-            (.resolution, "Minimum resolution in dpi"),
-            (.rotate, "Rotate scanned images by degrees"),
-        ])
-
-        self.printSection("Output", options: [
-            (.name, "Custom filename (without extension)"),
-        ])
-
-        self.printSection("Scanner", options: [
-            (.scanner, "Use a specific scanner by name (substring match)"),
-            (.exactName, "Require exact name match with --scanner"),
-        ])
-
-        self.printSection("General", options: [
-            (.verbose, "Enable verbose logging"),
-        ])
-
-        print("Examples:")
-        print("  scanner                                Scan to PDF in current directory")
-        print("  scanner --duplex                       Scan both sides")
-        print("  scanner --name invoice --format jpeg   Scan to invoice.jpg")
-        print("  scanner --input flatbed --color mono   Scan from flatbed in black and white")
-        print("  scanner list                           Show available scanners")
-        print("  scanner --size legal                   Scan a legal size page")
+    private static func handleMainHelp() -> Never {
+        let text = HelpFormatter.formatMainHelp(
+            title: "scanner - Document Scanning CLI",
+            usage: [
+                "scanner [options]",
+                "scanner list [options]",
+            ],
+            description: "Scan documents from a flatbed or document feeder and save to the current directory.",
+            configFile: "~/.config/scanner/scanner.conf",
+            commands: [
+                HelpCommandDTO(
+                    command: "scanner list",
+                    description: "List available scanners and exit"
+                ),
+            ],
+            optionGroups: [
+                OptionGroupDTO(title: "Scanning", parameters: [
+                    ParameterInfoDTO(
+                        name: "--input", shortFlag: "-i", type: "source", required: false,
+                        description: "Scan source [feeder, flatbed] (default: feeder)"
+                    ),
+                    ParameterInfoDTO(
+                        name: "--duplex", shortFlag: "-d", type: "flag", required: false,
+                        description: "Scan both sides of each page"
+                    ),
+                    ParameterInfoDTO(
+                        name: "--batch", shortFlag: "-b", type: "flag", required: false,
+                        description: "Pause after each page to allow additional pages"
+                    ),
+                ]),
+                OptionGroupDTO(title: "Output Format", parameters: [
+                    ParameterInfoDTO(
+                        name: "--format", shortFlag: "-f", type: "format", required: false,
+                        description: "File format [pdf, jpeg, tiff, png] (default: pdf)"
+                    ),
+                ]),
+                OptionGroupDTO(title: "Page Size", parameters: [
+                    ParameterInfoDTO(
+                        name: "--size", shortFlag: "-s", type: "size", required: false,
+                        description: "Page size [a4, letter, legal] (default: a4)"
+                    ),
+                ]),
+                OptionGroupDTO(title: "Image", parameters: [
+                    ParameterInfoDTO(
+                        name: "--color", shortFlag: "-c", type: "mode", required: false,
+                        description: "Color mode [color, mono] (default: color)"
+                    ),
+                    ParameterInfoDTO(
+                        name: "--resolution", shortFlag: "-r", type: "dpi", required: false,
+                        description: "Minimum resolution in dpi (default: 150)"
+                    ),
+                    ParameterInfoDTO(
+                        name: "--rotate", shortFlag: nil, type: "degrees", required: false,
+                        description: "Rotate scanned images by degrees (default: 0)"
+                    ),
+                ]),
+                OptionGroupDTO(title: "Output", parameters: [
+                    ParameterInfoDTO(
+                        name: "--name", shortFlag: "-n", type: "name", required: false,
+                        description: "Custom filename (without extension)"
+                    ),
+                ]),
+                OptionGroupDTO(title: "Scanner", parameters: [
+                    ParameterInfoDTO(
+                        name: "--scanner", shortFlag: nil, type: "name", required: false,
+                        description: "Use a specific scanner by name (substring match)"
+                    ),
+                    ParameterInfoDTO(
+                        name: "--exactname", shortFlag: "-e", type: "flag", required: false,
+                        description: "Require exact name match with --scanner"
+                    ),
+                ]),
+                OptionGroupDTO(title: "General", parameters: [
+                    ParameterInfoDTO(
+                        name: "--verbose", shortFlag: "-v", type: "flag", required: false,
+                        description: "Enable verbose logging"
+                    ),
+                ]),
+            ],
+            examples: [
+                ExampleDTO(command: "scanner", description: "Scan to PDF in current directory"),
+                ExampleDTO(command: "scanner --duplex", description: "Scan both sides"),
+                ExampleDTO(command: "scanner --name invoice --format jpeg", description: "Scan to invoice.jpg"),
+                ExampleDTO(
+                    command: "scanner --input flatbed --color mono",
+                    description: "Scan from flatbed in black and white"
+                ),
+                ExampleDTO(command: "scanner list", description: "Show available scanners"),
+                ExampleDTO(command: "scanner --size legal", description: "Scan a legal size page"),
+            ]
+        )
+        HelpFormatter.printAndExit(text)
     }
 
-    private static func printListHelp() {
-        print("Usage: scanner list [options]")
-        print("")
-        print("List all available scanners and exit.")
-        print("")
-        print("Options:")
-        print("  -t, --timeout         Scanner discovery timeout in seconds (default: 10)")
-        print("")
-        print("Examples:")
-        print("  scanner list                         List scanners")
-        print("  scanner list --timeout 15            Search for 15 seconds")
-    }
-
-    private static func printSection(_ title: String, options: [(ConfigOption, String)]) {
-        print("\(title):")
-        for (option, description) in options {
-            let longFlag = "--\(option.rawValue)"
-            let flag = if let short = option.shortFlag {
-                "-\(short), \(longFlag)"
-            } else {
-                "    \(longFlag)"
-            }
-            var line = "  \(flag.padding(toLength: 22, withPad: " ", startingAt: 0))\(description)"
-            if let defaultValue = option.defaultValue, option.validValues == nil {
-                line += " (default: \(defaultValue))"
-            }
-            print(line)
+    private static func handleCommandHelp(_ name: String) -> Never {
+        let commands = self.commandList()
+        if let cmd = commands.first(where: { self.matchesCommand($0.command, name: name) }) {
+            let text = HelpFormatter.formatCommandHelp(cmd)
+            HelpFormatter.printAndExit(text)
         }
-        print("")
+        self.exitWithError("Unknown command '\(name)'")
+    }
+
+    private static func matchesCommand(_ command: String, name: String) -> Bool {
+        let normalized = command
+            .replacingOccurrences(of: "scanner ", with: "")
+            .components(separatedBy: " ")
+            .filter { !$0.hasPrefix("<") && !$0.hasPrefix("[") }
+            .joined(separator: " ")
+        return normalized == name
+    }
+
+    // MARK: - Command List
+
+    private static func commandList() -> [CommandInfoDTO] {
+        [
+            CommandInfoDTO(
+                command: "scanner list",
+                description: "List all available scanners and exit.",
+                parameters: [
+                    ParameterInfoDTO(
+                        name: "--timeout",
+                        shortFlag: "-t",
+                        type: "seconds",
+                        required: false,
+                        description: "Scanner discovery timeout in seconds (default: 10)"
+                    ),
+                ],
+                output: nil,
+                examples: [
+                    ExampleDTO(command: "scanner list", description: "List scanners"),
+                    ExampleDTO(command: "scanner list --timeout 15", description: "Search for 15 seconds"),
+                ]
+            ),
+        ]
     }
 }

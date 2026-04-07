@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Refactored help output to data-driven architecture with `HelpFormatter` and DTOs (`HelpCommandDTO`, `CommandInfoDTO`, `ParameterInfoDTO`, `OptionGroupDTO`, `ExampleDTO`, `OutputInfoDTO`), matching the `events` CLI formatting style
+- Help output now uses dynamic column alignment per section instead of fixed-width padding
+- Options with values now show type hints (e.g. `--input <source>`, `--resolution <dpi>`)
+- Help output written via `FileHandle.standardOutput` with `printAndExit` instead of `print()` + `exit()`
+
+### Changed
 - Moved `CLI.swift` from `libscanner` to `scanner` target — CLI parsing is now an executable concern, not a library concern
 - Introduced `AppOptions` abstraction in `libscanner` with `Mode` enum (`.scan`/`.list`) and `timeout`, replacing global `CLI.listMode`/`CLI.timeout` statics
 - `AppController` and `ScannerBrowser` now accept `AppOptions` instead of accessing CLI state directly
