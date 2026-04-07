@@ -99,7 +99,6 @@ enum CLI {
 
         self.printSection("Output", options: [
             (.name, "Custom filename (without extension)"),
-            (.open, "Open the file after scanning"),
         ])
 
         self.printSection("Scanner", options: [

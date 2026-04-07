@@ -141,12 +141,6 @@ class OutputProcessor: @unchecked Sendable {
             self.log("Error while copying file to \(destinationURL.absoluteString)")
             return
         }
-
-        // Open file if requested
-        if self.configuration.flag(.open) {
-            Logger.verbose("Opening file at \(destinationFilePath)")
-            NSWorkspace.shared.open(URL(fileURLWithPath: destinationFilePath))
-        }
     }
 
     // MARK: - Helpers

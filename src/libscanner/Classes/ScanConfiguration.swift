@@ -17,7 +17,6 @@ enum ConfigOption: String, CaseIterable, Sendable {
     case format
     case size
     case color
-    case open
     case name
     case verbose
     case scanner
@@ -77,8 +76,6 @@ enum ConfigOption: String, CaseIterable, Sendable {
             "Page size: a4 (default), letter, legal"
         case .color:
             "Color mode: color (default), mono"
-        case .open:
-            "Open the scanned image when done."
         case .name:
             "Specify a custom name for the output file (without extension)"
         case .verbose:

@@ -19,7 +19,7 @@ struct ConfigOptionTests {
         #expect(ConfigOption.from(key: "format") == .format)
         #expect(ConfigOption.from(key: "size") == .size)
         #expect(ConfigOption.from(key: "color") == .color)
-        #expect(ConfigOption.from(key: "open") == .open)
+
         #expect(ConfigOption.from(key: "name") == .name)
         #expect(ConfigOption.from(key: "verbose") == .verbose)
         #expect(ConfigOption.from(key: "scanner") == .scanner)
@@ -44,7 +44,7 @@ struct ConfigOptionTests {
     @Test
     func typePropertyForFlags() {
         let flagOptions: [ConfigOption] = [
-            .duplex, .batch, .open, .verbose, .exactName,
+            .duplex, .batch, .verbose, .exactName,
         ]
         for option in flagOptions {
             #expect(option.type == .flag, "Expected \(option) to be .flag")
@@ -76,7 +76,7 @@ struct ConfigOptionTests {
     @Test
     func noDefaultValueForFlagsAndFreeformStrings() {
         let noDefaultOptions: [ConfigOption] = [
-            .duplex, .batch, .open, .verbose, .exactName,
+            .duplex, .batch, .verbose, .exactName,
             .name, .scanner,
         ]
         for option in noDefaultOptions {
@@ -86,7 +86,7 @@ struct ConfigOptionTests {
 
     @Test
     func allCasesCount() {
-        #expect(ConfigOption.allCases.count == 13)
+        #expect(ConfigOption.allCases.count == 12)
     }
 
     @Test
