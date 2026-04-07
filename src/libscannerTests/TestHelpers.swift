@@ -10,8 +10,8 @@ import AppKit
 import Foundation
 @testable import libscanner
 
-func makeConfig(_ args: [String], configFile: String? = nil) -> ScanConfiguration {
-    ScanConfiguration(arguments: args, configFilePath: configFile ?? "/dev/null")
+func makeConfig(_ args: [String], configFile: String? = nil) throws -> ScanConfiguration {
+    try ScanConfiguration(arguments: args, configFilePath: configFile ?? "/dev/null")
 }
 
 func makeTempConfigFile(contents: String) -> String {

@@ -10,7 +10,7 @@ import Foundation
 
 // MARK: - ConfigOption
 
-enum ConfigOption: String, CaseIterable, Sendable {
+public enum ConfigOption: String, CaseIterable, Sendable {
     case input
     case duplex
     case batch
@@ -34,7 +34,7 @@ enum ConfigOption: String, CaseIterable, Sendable {
         }
     }
 
-    var defaultValue: String? {
+    public var defaultValue: String? {
         switch self {
         case .input: "feeder"
         case .format: "pdf"
@@ -47,7 +47,7 @@ enum ConfigOption: String, CaseIterable, Sendable {
     }
 
     /// Valid values for enum-type options.
-    var validValues: [String: String]? {
+    public var validValues: [String: String]? {
         switch self {
         case .input:
             ["feeder": "feeder", "flatbed": "flatbed"]
@@ -91,7 +91,7 @@ enum ConfigOption: String, CaseIterable, Sendable {
         }
     }
 
-    var shortFlag: Character? {
+    public var shortFlag: Character? {
         switch self {
         case .input: "i"
         case .duplex: "d"
@@ -139,10 +139,10 @@ enum ConfigError: Error, Equatable {
 
 // MARK: - ScanConfiguration
 
-final class ScanConfiguration: Sendable {
+public final class ScanConfiguration: Sendable {
     let config: [ConfigOption: ConfigValue]
 
-    init(arguments: [String] = [], configFilePath: String? = nil) {
+    public init(arguments: [String] = [], configFilePath: String? = nil) throws {
         var config: [ConfigOption: ConfigValue] = [:]
 
         // 1. Load defaults
@@ -162,12 +162,8 @@ final class ScanConfiguration: Sendable {
             try? ScanConfiguration.parse(arguments: fileArgs, into: &config)
         }
 
-        // 3. Load CLI arguments (errors are fatal)
-        do {
-            try ScanConfiguration.parse(arguments: arguments, into: &config)
-        } catch {
-            CLI.exitWithError(Self.errorMessage(for: error))
-        }
+        // 3. Parse CLI arguments
+        try ScanConfiguration.parse(arguments: arguments, into: &config)
 
         self.config = config
     }
@@ -246,7 +242,7 @@ final class ScanConfiguration: Sendable {
         }
     }
 
-    static func errorMessage(for error: Error) -> String {
+    public static func errorMessage(for error: Error) -> String {
         switch error {
         case let ConfigError.unknownOption(arg):
             "Unknown option '\(arg)'"

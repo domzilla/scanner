@@ -7,23 +7,20 @@
 //
 
 import Foundation
+import libscanner
 
 // MARK: - CLI
 
 enum CLI {
-    /// Whether the `list` subcommand was invoked.
-    private(set) nonisolated(unsafe) static var listMode = false
-
-    /// Scanner discovery timeout in seconds.
-    private(set) nonisolated(unsafe) static var timeout: Double = 10.0
-
-    static func parseArguments(_ arguments: [String]) -> ScanConfiguration {
+    static func parseArguments(_ arguments: [String]) -> (AppOptions, ScanConfiguration) {
         var args = arguments
+        var mode: AppOptions.Mode = .scan
+        var timeout = 10.0
 
         // Handle subcommands first (before help, so `list -h` works)
         if let first = args.first, !first.hasPrefix("-"), !first.isEmpty {
             if first == "list" {
-                self.listMode = true
+                mode = .list
                 args.removeFirst()
             } else {
                 self.exitWithError("Unknown command '\(first)'")
@@ -32,7 +29,7 @@ enum CLI {
 
         // Handle help
         if args.contains("--help") || args.contains("-h") {
-            if self.listMode {
+            if mode == .list {
                 self.printListHelp()
             } else {
                 self.printHelp()
@@ -47,14 +44,21 @@ enum CLI {
                 guard let parsed = Double(value) else {
                     self.exitWithError("Invalid value for '--timeout': '\(value)'")
                 }
-                self.timeout = parsed
+                timeout = parsed
                 args.removeSubrange(index...index + 1)
             } else {
                 self.exitWithError("No value provided for option '--timeout'")
             }
         }
 
-        return ScanConfiguration(arguments: args)
+        let options = AppOptions(mode: mode, timeout: timeout)
+
+        do {
+            let configuration = try ScanConfiguration(arguments: args)
+            return (options, configuration)
+        } catch {
+            self.exitWithError(ScanConfiguration.errorMessage(for: error))
+        }
     }
 
     static func exitWithError(_ message: String) -> Never {

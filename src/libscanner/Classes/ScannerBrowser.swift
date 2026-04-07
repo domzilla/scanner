@@ -19,6 +19,7 @@ protocol ScannerBrowserDelegate: AnyObject {
 // MARK: - ScannerBrowser
 
 class ScannerBrowser: NSObject, ICDeviceBrowserDelegate {
+    let options: AppOptions
     let configuration: ScanConfiguration
     let deviceBrowser = ICDeviceBrowser()
     weak var delegate: ScannerBrowserDelegate?
@@ -27,7 +28,8 @@ class ScannerBrowser: NSObject, ICDeviceBrowserDelegate {
     private(set) var availableScannerNames: [String] = []
     private var searching = false
 
-    init(configuration: ScanConfiguration) {
+    init(options: AppOptions, configuration: ScanConfiguration) {
+        self.options = options
         self.configuration = configuration
 
         super.init()
@@ -45,7 +47,7 @@ class ScannerBrowser: NSObject, ICDeviceBrowserDelegate {
         Logger.verbose("Browsing for scanners")
         self.searching = true
 
-        if CLI.listMode {
+        if self.options.mode == .list {
             self.log("Available scanners:")
         }
         self.deviceBrowser.start()
@@ -64,7 +66,7 @@ class ScannerBrowser: NSObject, ICDeviceBrowserDelegate {
     func deviceBrowser(_: ICDeviceBrowser, didAdd device: ICDevice, moreComing _: Bool) {
         Logger.verbose("Added device: \(device)")
 
-        if CLI.listMode {
+        if self.options.mode == .list {
             self.log("* \(device.name ?? "[Nameless Device]")")
         }
 
@@ -94,7 +96,7 @@ class ScannerBrowser: NSObject, ICDeviceBrowserDelegate {
     private func deviceMatchesSpecified(device: ICScannerDevice) -> Bool {
         // If no name was specified, match first scanner (unless listing)
         guard let desiredName = self.configuration.string(.scanner) else {
-            return !CLI.listMode
+            return self.options.mode != .list
         }
         guard let deviceName = device.name else { return false }
 

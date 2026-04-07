@@ -9,7 +9,8 @@
 import Foundation
 import libscanner
 
-let appController = AppController(arguments: CommandLine.arguments)
+let (options, configuration) = CLI.parseArguments(Array(CommandLine.arguments.dropFirst()))
+let appController = AppController(options: options, configuration: configuration)
 appController.go()
 
 CFRunLoopRun()

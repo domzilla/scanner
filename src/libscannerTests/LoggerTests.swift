@@ -18,14 +18,14 @@ struct LoggerTests {
     }
 
     @Test
-    func verboseWithoutVerboseFlag() {
-        Logger.configuration = makeConfig([])
+    func verboseWithoutVerboseFlag() throws {
+        Logger.configuration = try makeConfig([])
         Logger.verbose("test message")
     }
 
     @Test
-    func verboseWithVerboseFlag() {
-        Logger.configuration = makeConfig(["--verbose"])
+    func verboseWithVerboseFlag() throws {
+        Logger.configuration = try makeConfig(["--verbose"])
         Logger.verbose("test message")
     }
 

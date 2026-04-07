@@ -20,15 +20,17 @@ enum ExitCode: Int32 {
 // MARK: - AppController
 
 public class AppController: NSObject {
+    let options: AppOptions
     let configuration: ScanConfiguration
     var scannerBrowserTimer: Timer?
     var scannerController: ScannerController?
 
     private let scannerBrowser: ScannerBrowser
 
-    public init(arguments: [String]) {
-        self.configuration = CLI.parseArguments(Array(arguments.dropFirst()))
-        self.scannerBrowser = ScannerBrowser(configuration: self.configuration)
+    public init(options: AppOptions, configuration: ScanConfiguration) {
+        self.options = options
+        self.configuration = configuration
+        self.scannerBrowser = ScannerBrowser(options: options, configuration: self.configuration)
 
         super.init()
 
@@ -39,13 +41,12 @@ public class AppController: NSObject {
     public func go() {
         self.scannerBrowser.browse()
 
-        let timerExpiration = CLI.timeout
         self.scannerBrowserTimer = Timer
-            .scheduledTimer(withTimeInterval: timerExpiration, repeats: false) { [weak self] _ in
+            .scheduledTimer(withTimeInterval: self.options.timeout, repeats: false) { [weak self] _ in
                 self?.scannerBrowser.stopBrowsing()
             }
 
-        Logger.verbose("Waiting up to \(timerExpiration) seconds to find scanners")
+        Logger.verbose("Waiting up to \(self.options.timeout) seconds to find scanners")
     }
 
     func exit(with code: ExitCode = .success) {
@@ -77,7 +78,7 @@ extension AppController: ScannerBrowserDelegate {
         self.scannerBrowserTimer?.invalidate()
         self.scannerBrowserTimer = nil
 
-        guard !CLI.listMode else {
+        guard self.options.mode != .list else {
             self.exit(with: .success)
             return
         }

@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Moved `CLI.swift` from `libscanner` to `scanner` target — CLI parsing is now an executable concern, not a library concern
+- Introduced `AppOptions` abstraction in `libscanner` with `Mode` enum (`.scan`/`.list`) and `timeout`, replacing global `CLI.listMode`/`CLI.timeout` statics
+- `AppController` and `ScannerBrowser` now accept `AppOptions` instead of accessing CLI state directly
+- `ScanConfiguration.init` now throws on parse errors instead of calling `CLI.exitWithError()`
+
+### Changed
 - Adopted standard POSIX/GNU flag convention: `--flag` for long options, `-x` for short options
 - Added single-letter short flags for most options (e.g. `-d` for `--duplex`, `-f` for `--format`)
 - Config file format updated to use `--flag` syntax (breaking change for existing config files)
