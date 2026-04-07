@@ -7,9 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Fixed empty PDF being created when no pages were scanned
+- Fixed `-h` flag not being recognized as help
+- Invalid arguments now cause immediate exit with error instead of being silently ignored
+
 ### Changed
 - Renamed config file from `~/.scanline.conf` to `~/.config/scanner/scanner.conf`
 - Replaced all remaining "scanline" references in user-facing strings, README, and AGENTS.md
+- Rewrote `-help` output with logical grouping, defaults, and usage examples
+- Replaced mutually exclusive flags with enum options: `-input [feeder|flatbed]`, `-format [pdf|jpeg|tiff|png]`, `-size [a4|letter|legal]`, `-color [color|mono]`
+- Removed all option synonyms (e.g. `-dup`, `-fb`, `-jpg`, `-bw`, `-v`, `-s`, `-res`, `-t`)
+- Default page size changed from US Letter to A4
 
 ### Added
 - Complete Swift 6 rewrite under `src/scanner/` with filesystem-synced Xcode project

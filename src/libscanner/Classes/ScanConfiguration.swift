@@ -11,17 +11,13 @@ import Foundation
 // MARK: - ConfigOption
 
 enum ConfigOption: String, CaseIterable, Sendable {
+    case input
     case duplex
     case batch
     case list
-    case flatbed
-    case jpeg
-    case tiff
-    case png
-    case legal
-    case letter
-    case a4
-    case mono
+    case format
+    case size
+    case color
     case open
     case name
     case verbose
@@ -32,25 +28,10 @@ enum ConfigOption: String, CaseIterable, Sendable {
     case ocr
     case rotate
 
-    var synonyms: [String] {
-        switch self {
-        case .duplex: ["dup"]
-        case .flatbed: ["fb"]
-        case .jpeg: ["jpg"]
-        case .tiff: ["tif"]
-        case .mono: ["bw"]
-        case .verbose: ["v"]
-        case .scanner: ["s"]
-        case .resolution: ["res", "minResolution"]
-        case .browseSecs: ["time", "t"]
-        case .exactName: ["exact"]
-        default: []
-        }
-    }
-
     var type: ConfigOptionType {
         switch self {
-        case .name, .scanner, .resolution, .browseSecs, .rotate:
+        case .name, .scanner, .resolution, .browseSecs, .rotate,
+             .input, .format, .size, .color:
             .string
         default:
             .flag
@@ -59,6 +40,10 @@ enum ConfigOption: String, CaseIterable, Sendable {
 
     var defaultValue: String? {
         switch self {
+        case .input: "feeder"
+        case .format: "pdf"
+        case .size: "a4"
+        case .color: "color"
         case .resolution: "150"
         case .browseSecs: "10"
         case .rotate: "0"
@@ -66,30 +51,38 @@ enum ConfigOption: String, CaseIterable, Sendable {
         }
     }
 
+    /// Valid values for enum-type options.
+    var validValues: [String: String]? {
+        switch self {
+        case .input:
+            ["feeder": "feeder", "flatbed": "flatbed"]
+        case .format:
+            ["pdf": "pdf", "jpeg": "jpeg", "tiff": "tiff", "png": "png"]
+        case .size:
+            ["a4": "a4", "letter": "letter", "legal": "legal"]
+        case .color:
+            ["color": "color", "mono": "mono"]
+        default:
+            nil
+        }
+    }
+
     var description: String {
         switch self {
+        case .input:
+            "Scan source: feeder (default), flatbed"
         case .duplex:
             "Duplex (two-sided) scanning mode, for scanners that support it."
         case .batch:
             "scanner will pause after each page, allowing you to continue to scan additional pages until you say you're done."
         case .list:
             "List all available scanners, then exit."
-        case .flatbed:
-            "Scan from the scanner's flatbed (default is paper feeder)"
-        case .jpeg:
-            "Scan to a JPEG file (default is PDF)"
-        case .tiff:
-            "Scan to a TIFF file (default is PDF)"
-        case .png:
-            "Scan to a PNG file (default is PDF)"
-        case .legal:
-            "Scan a legal size page"
-        case .letter:
-            "Scan a letter size page"
-        case .a4:
-            "Scan an A4 size page"
-        case .mono:
-            "Scan in monochrome (black and white)"
+        case .format:
+            "Output format: pdf (default), jpeg, tiff, png"
+        case .size:
+            "Page size: a4 (default), letter, legal"
+        case .color:
+            "Color mode: color (default), mono"
         case .open:
             "Open the scanned image when done."
         case .name:
@@ -112,15 +105,7 @@ enum ConfigOption: String, CaseIterable, Sendable {
     }
 
     static func from(key: String) -> ConfigOption? {
-        if let option = ConfigOption(rawValue: key) {
-            return option
-        }
-        for option in ConfigOption.allCases {
-            if option.synonyms.contains(key) {
-                return option
-            }
-        }
-        return nil
+        ConfigOption(rawValue: key)
     }
 }
 
@@ -134,6 +119,15 @@ enum ConfigOptionType: Sendable {
 enum ConfigValue: Sendable {
     case flag(Bool)
     case string(String)
+}
+
+// MARK: - ConfigError
+
+enum ConfigError: Error, Equatable {
+    case unknownOption(String)
+    case unknownArgument(String)
+    case missingValue(String)
+    case invalidValue(String, String)
 }
 
 // MARK: - ScanConfiguration
@@ -151,18 +145,22 @@ final class ScanConfiguration: Sendable {
             }
         }
 
-        // 2. Load config file
+        // 2. Load config file (errors in config file are non-fatal)
         let filePath = configFilePath ?? ScanConfiguration.defaultConfigFilePath
         if
             FileManager.default.isReadableFile(atPath: filePath),
             let contents = try? String(contentsOfFile: filePath, encoding: .utf8)
         {
             let fileArgs = contents.components(separatedBy: "\n")
-            ScanConfiguration.parse(arguments: fileArgs, into: &config)
+            try? ScanConfiguration.parse(arguments: fileArgs, into: &config)
         }
 
-        // 3. Load CLI arguments (override everything)
-        ScanConfiguration.parse(arguments: arguments, into: &config)
+        // 3. Load CLI arguments (errors are fatal)
+        do {
+            try ScanConfiguration.parse(arguments: arguments, into: &config)
+        } catch {
+            Self.exitWithError(error)
+        }
 
         self.config = config
     }
@@ -187,17 +185,17 @@ final class ScanConfiguration: Sendable {
 
     private static let defaultConfigFilePath = "\(NSHomeDirectory())/.config/scanner/scanner.conf"
 
-    private static func parse(
+    static func parse(
         arguments: [String],
         into config: inout [ConfigOption: ConfigValue]
-    ) {
+    ) throws {
         var i = 0
         while i < arguments.count {
             let arg = arguments[i]
 
-            if arg == "-help" || arg == "--help" {
+            if arg == "-help" || arg == "--help" || arg == "-h" {
                 self.printHelp()
-                exit(1)
+                exit(0)
             } else if arg.hasPrefix("-") {
                 let key = String(arg.dropFirst())
                 if let option = ConfigOption.from(key: key) {
@@ -205,49 +203,114 @@ final class ScanConfiguration: Sendable {
                     case .string:
                         if i + 1 < arguments.count {
                             i += 1
-                            config[option] = .string(arguments[i])
+                            let rawValue = arguments[i]
+                            if let validValues = option.validValues {
+                                guard let canonical = validValues[rawValue] else {
+                                    let allowed = Set(validValues.values).sorted().joined(separator: ", ")
+                                    throw ConfigError.invalidValue(arg, allowed)
+                                }
+                                config[option] = .string(canonical)
+                            } else {
+                                config[option] = .string(rawValue)
+                            }
                         } else {
-                            self.log("WARNING: No value provided for option '\(arg)'")
+                            throw ConfigError.missingValue(arg)
                         }
                     case .flag:
                         config[option] = .flag(true)
                     }
                 } else {
-                    self.log("WARNING: Unknown option '\(arg)' will be ignored")
+                    throw ConfigError.unknownOption(arg)
                 }
             } else if !arg.isEmpty {
-                self.log("WARNING: Unknown argument '\(arg)' will be ignored")
+                throw ConfigError.unknownArgument(arg)
             }
 
             i += 1
         }
     }
 
-    private static func log(_ message: String) {
-        print(message)
+    private static func exitWithError(_ error: Error) -> Never {
+        let message: String = switch error {
+        case let ConfigError.unknownOption(arg):
+            "Unknown option '\(arg)'"
+        case let ConfigError.unknownArgument(arg):
+            "Unknown argument '\(arg)'"
+        case let ConfigError.missingValue(arg):
+            "No value provided for option '\(arg)'"
+        case let ConfigError.invalidValue(arg, allowed):
+            "Invalid value for '\(arg)'. Valid values: \(allowed)"
+        default:
+            error.localizedDescription
+        }
+        fputs("Error: \(message)\n", stderr)
+        fputs("Run 'scanner -h' for usage information.\n", stderr)
+        exit(1)
     }
 
     private static func printHelp() {
         print("Usage: scanner [options]")
         print("")
-
-        for option in ConfigOption.allCases {
-            print("-\(option.rawValue):")
-            print("Purpose: \(option.description)")
-            if let defaultValue = option.defaultValue {
-                print("Default: \(defaultValue)")
-            }
-            print("")
-        }
-
+        print("Scan documents from a flatbed or document feeder and save to the current directory.")
+        print("Config file: ~/.config/scanner/scanner.conf")
         print("")
+
+        self.printSection("Scanning", options: [
+            (.input, "Scan source [feeder, flatbed] (default: feeder)"),
+            (.duplex, "Scan both sides of each page"),
+            (.batch, "Pause after each page to allow additional pages"),
+        ])
+
+        self.printSection("Output Format", options: [
+            (.format, "File format [pdf, jpeg, tiff, png] (default: pdf)"),
+        ])
+
+        self.printSection("Page Size", options: [
+            (.size, "Page size [a4, letter, legal] (default: a4)"),
+        ])
+
+        self.printSection("Image", options: [
+            (.color, "Color mode [color, mono] (default: color)"),
+            (.resolution, "Minimum resolution in dpi"),
+            (.rotate, "Rotate scanned images by degrees"),
+        ])
+
+        self.printSection("Output", options: [
+            (.name, "Custom filename (without extension)"),
+            (.open, "Open the file after scanning"),
+            (.ocr, "Run OCR and output text to stdout"),
+        ])
+
+        self.printSection("Scanner Selection", options: [
+            (.list, "List available scanners and exit"),
+            (.scanner, "Use a specific scanner by name"),
+            (.exactName, "Require exact scanner name match"),
+            (.browseSecs, "Scanner discovery timeout in seconds"),
+        ])
+
+        self.printSection("General", options: [
+            (.verbose, "Enable verbose logging"),
+        ])
+
         print("Examples:")
+        print("  scanner                              Scan to PDF in current directory")
+        print("  scanner -duplex                      Scan both sides")
+        print("  scanner -name invoice -format jpeg   Scan to invoice.jpg")
+        print("  scanner -input flatbed -color mono   Scan from flatbed in black and white")
+        print("  scanner -list                        Show available scanners")
+        print("  scanner -ocr                         Scan and output text to stdout")
+    }
+
+    private static func printSection(_ title: String, options: [(ConfigOption, String)]) {
+        print("\(title):")
+        for (option, description) in options {
+            let flag = "-\(option.rawValue)"
+            var line = "  \(flag.padding(toLength: 20, withPad: " ", startingAt: 0))\(description)"
+            if let defaultValue = option.defaultValue, option.validValues == nil {
+                line += " (default: \(defaultValue))"
+            }
+            print(line)
+        }
         print("")
-        print("scanner")
-        print("   ^-- Scan to current directory as scan_0.pdf")
-        print("scanner -duplex")
-        print("   ^-- Scan 2-sided to current directory")
-        print("scanner -name invoice -jpeg")
-        print("   ^-- Scan to invoice.jpg in current directory")
     }
 }

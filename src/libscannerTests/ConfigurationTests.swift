@@ -20,18 +20,16 @@ struct ConfigurationTests {
 
         #expect(config.flag(.duplex) == true)
         #expect(config.flag(.batch) == false)
-        #expect(config.flag(.flatbed) == false)
         #expect(config.string(.name) == "the_name")
     }
 
     @Test
     func loadConfigurationFromFileWithArgumentOverride() {
         let path = makeTempConfigFile(contents: "-duplex\n-name\nthe_name\n")
-        let config = ScanConfiguration(arguments: ["-flatbed"], configFilePath: path)
+        let config = ScanConfiguration(arguments: ["-input", "flatbed"], configFilePath: path)
 
         #expect(config.flag(.duplex) == true)
-        #expect(config.flag(.batch) == false)
-        #expect(config.flag(.flatbed) == true)
+        #expect(config.string(.input) == "flatbed")
         #expect(config.string(.name) == "the_name")
     }
 
@@ -44,36 +42,33 @@ struct ConfigurationTests {
 
     @Test
     func configFileWithEmptyLines() {
-        let path = makeTempConfigFile(contents: "\n\n-batch\n\n-mono\n\n")
+        let path = makeTempConfigFile(contents: "\n\n-batch\n\n-color\nmono\n\n")
         let config = ScanConfiguration(arguments: [], configFilePath: path)
         #expect(config.flag(.batch) == true)
-        #expect(config.flag(.mono) == true)
+        #expect(config.string(.color) == "mono")
     }
 
     @Test
     func configFileWithMultipleOptions() {
-        let path = makeTempConfigFile(contents: "-duplex\n-flatbed\n-jpeg\n-verbose\n-resolution\n300\n")
+        let path = makeTempConfigFile(contents: "-duplex\n-input\nflatbed\n-format\njpeg\n-verbose\n-resolution\n300\n")
         let config = ScanConfiguration(arguments: [], configFilePath: path)
         #expect(config.flag(.duplex) == true)
-        #expect(config.flag(.flatbed) == true)
-        #expect(config.flag(.jpeg) == true)
-        #expect(config.flag(.verbose) == true)
-        #expect(config.string(.resolution) == "300")
-    }
-
-    @Test
-    func configFileSynonyms() {
-        let path = makeTempConfigFile(contents: "-dup\n-fb\n-jpg\n-bw\n-v\n-res\n300\n")
-        let config = ScanConfiguration(arguments: [], configFilePath: path)
-        #expect(config.flag(.duplex) == true)
-        #expect(config.flag(.flatbed) == true)
-        #expect(config.flag(.jpeg) == true)
-        #expect(config.flag(.mono) == true)
+        #expect(config.string(.input) == "flatbed")
+        #expect(config.string(.format) == "jpeg")
         #expect(config.flag(.verbose) == true)
         #expect(config.string(.resolution) == "300")
     }
 
     // MARK: - Default Values
+
+    @Test
+    func defaultEnumOptions() {
+        let config = makeConfig([])
+        #expect(config.string(.input) == "feeder")
+        #expect(config.string(.format) == "pdf")
+        #expect(config.string(.size) == "a4")
+        #expect(config.string(.color) == "color")
+    }
 
     @Test
     func defaultResolution() {
@@ -116,14 +111,6 @@ struct ConfigurationTests {
             ("-duplex", .duplex),
             ("-batch", .batch),
             ("-list", .list),
-            ("-flatbed", .flatbed),
-            ("-jpeg", .jpeg),
-            ("-tiff", .tiff),
-            ("-png", .png),
-            ("-legal", .legal),
-            ("-letter", .letter),
-            ("-a4", .a4),
-            ("-mono", .mono),
             ("-open", .open),
             ("-verbose", .verbose),
             ("-exactname", .exactName),
@@ -139,8 +126,7 @@ struct ConfigurationTests {
     func unsetFlagsAreFalse() {
         let config = makeConfig([])
         let allFlags: [ConfigOption] = [
-            .duplex, .batch, .list, .flatbed, .jpeg, .tiff, .png,
-            .legal, .letter, .a4, .mono, .open, .verbose, .exactName, .ocr,
+            .duplex, .batch, .list, .open, .verbose, .exactName, .ocr,
         ]
         for option in allFlags {
             #expect(config.flag(option) == false, "\(option) should be false by default")
@@ -159,14 +145,84 @@ struct ConfigurationTests {
 
     @Test
     func multipleFlagsCombined() {
-        let config = makeConfig(["-duplex", "-flatbed", "-jpeg", "-mono", "-verbose"])
+        let config = makeConfig(["-duplex", "-verbose", "-ocr"])
         #expect(config.flag(.duplex) == true)
-        #expect(config.flag(.flatbed) == true)
-        #expect(config.flag(.jpeg) == true)
-        #expect(config.flag(.mono) == true)
         #expect(config.flag(.verbose) == true)
+        #expect(config.flag(.ocr) == true)
         #expect(config.flag(.batch) == false)
         #expect(config.flag(.list) == false)
+    }
+
+    // MARK: - Enum Options
+
+    @Test
+    func inputOption() {
+        let config = makeConfig(["-input", "flatbed"])
+        #expect(config.string(.input) == "flatbed")
+    }
+
+    @Test
+    func formatOption() {
+        let config = makeConfig(["-format", "jpeg"])
+        #expect(config.string(.format) == "jpeg")
+    }
+
+    @Test
+    func sizeOption() {
+        let config = makeConfig(["-size", "letter"])
+        #expect(config.string(.size) == "letter")
+    }
+
+    @Test
+    func colorOption() {
+        let config = makeConfig(["-color", "mono"])
+        #expect(config.string(.color) == "mono")
+    }
+
+    @Test
+    func allFormatValues() {
+        for format in ["pdf", "jpeg", "tiff", "png"] {
+            let config = makeConfig(["-format", format])
+            #expect(config.string(.format) == format)
+        }
+    }
+
+    @Test
+    func allSizeValues() {
+        for size in ["a4", "letter", "legal"] {
+            let config = makeConfig(["-size", size])
+            #expect(config.string(.size) == size)
+        }
+    }
+
+    @Test
+    func allColorValues() {
+        for color in ["color", "mono"] {
+            let config = makeConfig(["-color", color])
+            #expect(config.string(.color) == color)
+        }
+    }
+
+    @Test
+    func allInputValues() {
+        for input in ["feeder", "flatbed"] {
+            let config = makeConfig(["-input", input])
+            #expect(config.string(.input) == input)
+        }
+    }
+
+    @Test
+    func invalidEnumValueThrows() {
+        var config: [ConfigOption: ConfigValue] = [:]
+        #expect(throws: ConfigError.invalidValue("-format", "jpeg, pdf, png, tiff")) {
+            try ScanConfiguration.parse(arguments: ["-format", "bmp"], into: &config)
+        }
+    }
+
+    @Test
+    func enumOptionOverridesDefault() {
+        let config = makeConfig(["-format", "png"])
+        #expect(config.string(.format) == "png")
     }
 
     // MARK: - String Options
@@ -210,155 +266,8 @@ struct ConfigurationTests {
 
     @Test
     func stringReturnsNilForFlagOptions() {
-        let config = makeConfig(["-duplex", "-jpeg"])
+        let config = makeConfig(["-duplex"])
         #expect(config.string(.duplex) == nil)
-        #expect(config.string(.jpeg) == nil)
-    }
-
-    // MARK: - Synonym Support
-
-    @Test
-    func jpegOption() {
-        let config = makeConfig(["-jpeg"])
-        #expect(config.flag(.jpeg) == true)
-    }
-
-    @Test
-    func jpegOptionWithJpgSynonym() {
-        let config = makeConfig(["-jpg"])
-        #expect(config.flag(.jpeg) == true)
-    }
-
-    @Test
-    func duplexWithDupSynonym() {
-        let config = makeConfig(["-dup"])
-        #expect(config.flag(.duplex) == true)
-    }
-
-    @Test
-    func flatbedWithFbSynonym() {
-        let config = makeConfig(["-fb"])
-        #expect(config.flag(.flatbed) == true)
-    }
-
-    @Test
-    func tiffWithTifSynonym() {
-        let config = makeConfig(["-tif"])
-        #expect(config.flag(.tiff) == true)
-    }
-
-    @Test
-    func monoWithBwSynonym() {
-        let config = makeConfig(["-bw"])
-        #expect(config.flag(.mono) == true)
-    }
-
-    @Test
-    func verboseWithVSynonym() {
-        let config = makeConfig(["-v"])
-        #expect(config.flag(.verbose) == true)
-    }
-
-    @Test
-    func scannerWithSSynonym() {
-        let config = makeConfig(["-s", "Canon"])
-        #expect(config.string(.scanner) == "Canon")
-    }
-
-    @Test
-    func resolutionWithResSynonym() {
-        let config = makeConfig(["-res", "600"])
-        #expect(config.string(.resolution) == "600")
-    }
-
-    @Test
-    func resolutionWithMinResolutionSynonym() {
-        let config = makeConfig(["-minResolution", "1200"])
-        #expect(config.string(.resolution) == "1200")
-    }
-
-    @Test
-    func browseSecsWithTimeSynonym() {
-        let config = makeConfig(["-time", "15"])
-        #expect(config.string(.browseSecs) == "15")
-    }
-
-    @Test
-    func browseSecsWithTSynonym() {
-        let config = makeConfig(["-t", "3"])
-        #expect(config.string(.browseSecs) == "3")
-    }
-
-    @Test
-    func exactNameWithExactSynonym() {
-        let config = makeConfig(["-exact"])
-        #expect(config.flag(.exactName) == true)
-    }
-
-    // MARK: - Page Sizes
-
-    @Test
-    func letterNotLegal() {
-        let config = makeConfig(["-letter"])
-        #expect(config.flag(.letter) == true)
-        #expect(config.flag(.legal) == false)
-    }
-
-    @Test
-    func legalNotLetter() {
-        let config = makeConfig(["-legal"])
-        #expect(config.flag(.letter) == false)
-        #expect(config.flag(.legal) == true)
-    }
-
-    @Test
-    func a4NotLetterOrLegal() {
-        let config = makeConfig(["-a4"])
-        #expect(config.flag(.a4) == true)
-        #expect(config.flag(.letter) == false)
-        #expect(config.flag(.legal) == false)
-    }
-
-    @Test
-    func multipleSizesAllSet() {
-        let config = makeConfig(["-letter", "-legal", "-a4"])
-        #expect(config.flag(.letter) == true)
-        #expect(config.flag(.legal) == true)
-        #expect(config.flag(.a4) == true)
-    }
-
-    // MARK: - Format Options
-
-    @Test
-    func jpegFormat() {
-        let config = makeConfig(["-jpeg"])
-        #expect(config.flag(.jpeg) == true)
-        #expect(config.flag(.tiff) == false)
-        #expect(config.flag(.png) == false)
-    }
-
-    @Test
-    func tiffFormat() {
-        let config = makeConfig(["-tiff"])
-        #expect(config.flag(.tiff) == true)
-        #expect(config.flag(.jpeg) == false)
-        #expect(config.flag(.png) == false)
-    }
-
-    @Test
-    func pngFormat() {
-        let config = makeConfig(["-png"])
-        #expect(config.flag(.png) == true)
-        #expect(config.flag(.jpeg) == false)
-        #expect(config.flag(.tiff) == false)
-    }
-
-    @Test
-    func defaultFormatIsPDF() {
-        let config = makeConfig([])
-        #expect(config.flag(.jpeg) == false)
-        #expect(config.flag(.tiff) == false)
-        #expect(config.flag(.png) == false)
     }
 
     // MARK: - Edge Cases
@@ -378,36 +287,35 @@ struct ConfigurationTests {
     }
 
     @Test
-    func missingSecondParameter() {
-        _ = makeConfig(["-scanner"])
-        let config = makeConfig(["-scanner", "epson"])
-        #expect(config.string(.scanner) == "epson")
+    func missingValueThrows() {
+        var config: [ConfigOption: ConfigValue] = [:]
+        #expect(throws: ConfigError.missingValue("-scanner")) {
+            try ScanConfiguration.parse(arguments: ["-scanner"], into: &config)
+        }
     }
 
     @Test
-    func unknownOptionIgnored() {
-        let config = makeConfig(["-unknown", "-duplex"])
-        #expect(config.flag(.duplex) == true)
+    func unknownOptionThrows() {
+        var config: [ConfigOption: ConfigValue] = [:]
+        #expect(throws: ConfigError.unknownOption("-unknown")) {
+            try ScanConfiguration.parse(arguments: ["-unknown"], into: &config)
+        }
     }
 
     @Test
-    func unknownArgumentIgnored() {
-        let config = makeConfig(["random_text", "-batch"])
-        #expect(config.flag(.batch) == true)
+    func unknownArgumentThrows() {
+        var config: [ConfigOption: ConfigValue] = [:]
+        #expect(throws: ConfigError.unknownArgument("random_text")) {
+            try ScanConfiguration.parse(arguments: ["random_text"], into: &config)
+        }
     }
 
     @Test
-    func stringOptionAtEndWithoutValue() {
-        let config = makeConfig(["-duplex", "-name"])
-        #expect(config.flag(.duplex) == true)
-        #expect(config.string(.name) == nil)
-    }
-
-    @Test
-    func stringOptionValueLooksLikeFlag() {
-        let config = makeConfig(["-name", "-jpeg"])
-        #expect(config.string(.name) == "-jpeg")
-        #expect(config.flag(.jpeg) == false)
+    func stringOptionAtEndThrows() {
+        var config: [ConfigOption: ConfigValue] = [:]
+        #expect(throws: ConfigError.missingValue("-name")) {
+            try ScanConfiguration.parse(arguments: ["-duplex", "-name"], into: &config)
+        }
     }
 
     @Test
@@ -420,9 +328,9 @@ struct ConfigurationTests {
 
     @Test
     func mixedFlagsAndStrings() {
-        let config = makeConfig(["-duplex", "-name", "scan", "-flatbed", "-resolution", "300", "-verbose"])
+        let config = makeConfig(["-duplex", "-name", "scan", "-input", "flatbed", "-resolution", "300", "-verbose"])
         #expect(config.flag(.duplex) == true)
-        #expect(config.flag(.flatbed) == true)
+        #expect(config.string(.input) == "flatbed")
         #expect(config.flag(.verbose) == true)
         #expect(config.string(.name) == "scan")
         #expect(config.string(.resolution) == "300")
@@ -463,8 +371,8 @@ struct ConfigurationTests {
     @Test
     func configFileFlagPersistsWithCLIAdditions() {
         let path = makeTempConfigFile(contents: "-duplex\n")
-        let config = ScanConfiguration(arguments: ["-flatbed"], configFilePath: path)
+        let config = ScanConfiguration(arguments: ["-input", "flatbed"], configFilePath: path)
         #expect(config.flag(.duplex) == true)
-        #expect(config.flag(.flatbed) == true)
+        #expect(config.string(.input) == "flatbed")
     }
 }

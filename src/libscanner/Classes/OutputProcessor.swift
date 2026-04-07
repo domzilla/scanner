@@ -41,9 +41,7 @@ class OutputProcessor: @unchecked Sendable {
             }
         }
 
-        let wantsPDF = !self.configuration.flag(.jpeg) &&
-            !self.configuration.flag(.tiff) &&
-            !self.configuration.flag(.png)
+        let wantsPDF = self.configuration.string(.format) == "pdf"
 
         if !wantsPDF {
             for url in self.urls {
@@ -143,14 +141,11 @@ class OutputProcessor: @unchecked Sendable {
 
         Logger.verbose("Output path: \(outputDir)")
 
-        let ext = if self.configuration.flag(.png) {
-            "png"
-        } else if self.configuration.flag(.tiff) {
-            "tif"
-        } else if self.configuration.flag(.jpeg) {
-            "jpg"
-        } else {
-            "pdf"
+        let ext = switch self.configuration.string(.format) {
+        case "png": "png"
+        case "tiff": "tif"
+        case "jpeg": "jpg"
+        default: "pdf"
         }
 
         let baseName = self.configuration.string(.name) ?? self.defaultFilename

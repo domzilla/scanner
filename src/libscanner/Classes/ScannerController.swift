@@ -29,7 +29,7 @@ class ScannerController: NSObject, @unchecked Sendable, ICScannerDeviceDelegate 
     private var pendingAction: PendingAction = .scan
 
     private var desiredFunctionalUnitType: ICScannerFunctionalUnitType {
-        self.configuration.flag(.flatbed) ? .flatbed : .documentFeeder
+        self.configuration.string(.input) == "flatbed" ? .flatbed : .documentFeeder
     }
 
     init(scanner: ICScannerDevice, configuration: ScanConfiguration) {
@@ -130,6 +130,12 @@ class ScannerController: NSObject, @unchecked Sendable, ICScannerDeviceDelegate 
             }
         }
 
+        guard !self.scannedURLs.isEmpty else {
+            self.log("No pages were scanned.")
+            self.delegate?.scannerControllerDidFail(self)
+            return
+        }
+
         let outputProcessor = OutputProcessor(
             urls: self.scannedURLs,
             configuration: self.configuration
@@ -178,7 +184,7 @@ class ScannerController: NSObject, @unchecked Sendable, ICScannerDeviceDelegate 
             functionalUnit.resolution = resolutionIndex
         }
 
-        if self.configuration.flag(.mono) {
+        if self.configuration.string(.color) == "mono" {
             functionalUnit.pixelDataType = .BW
             functionalUnit.bitDepth = .depth1Bit
         } else {
@@ -190,11 +196,12 @@ class ScannerController: NSObject, @unchecked Sendable, ICScannerDeviceDelegate 
         self.scanner.downloadsDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
         self.scanner.documentName = "Scan"
 
-        if self.configuration.flag(.png) {
+        switch self.configuration.string(.format) {
+        case "png":
             self.scanner.documentUTI = UTType.png.identifier
-        } else if self.configuration.flag(.tiff) {
+        case "tiff":
             self.scanner.documentUTI = UTType.tiff.identifier
-        } else {
+        default:
             self.scanner.documentUTI = UTType.jpeg.identifier
         }
     }
@@ -204,12 +211,13 @@ class ScannerController: NSObject, @unchecked Sendable, ICScannerDeviceDelegate 
 
         guard let functionalUnit = self.scanner.selectedFunctionalUnit as? ICScannerFunctionalUnitDocumentFeeder else { return }
 
-        if self.configuration.flag(.legal) {
-            functionalUnit.documentType = .typeUSLegal
-        } else if self.configuration.flag(.a4) {
-            functionalUnit.documentType = .typeA4
-        } else {
+        switch self.configuration.string(.size) {
+        case "letter":
             functionalUnit.documentType = .typeUSLetter
+        case "legal":
+            functionalUnit.documentType = .typeUSLegal
+        default:
+            functionalUnit.documentType = .typeA4
         }
 
         functionalUnit.duplexScanningEnabled = self.configuration.flag(.duplex)

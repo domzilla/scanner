@@ -13,17 +13,13 @@ import Testing
 struct ConfigOptionTests {
     @Test
     func fromRawValue() {
+        #expect(ConfigOption.from(key: "input") == .input)
         #expect(ConfigOption.from(key: "duplex") == .duplex)
         #expect(ConfigOption.from(key: "batch") == .batch)
         #expect(ConfigOption.from(key: "list") == .list)
-        #expect(ConfigOption.from(key: "flatbed") == .flatbed)
-        #expect(ConfigOption.from(key: "jpeg") == .jpeg)
-        #expect(ConfigOption.from(key: "tiff") == .tiff)
-        #expect(ConfigOption.from(key: "png") == .png)
-        #expect(ConfigOption.from(key: "legal") == .legal)
-        #expect(ConfigOption.from(key: "letter") == .letter)
-        #expect(ConfigOption.from(key: "a4") == .a4)
-        #expect(ConfigOption.from(key: "mono") == .mono)
+        #expect(ConfigOption.from(key: "format") == .format)
+        #expect(ConfigOption.from(key: "size") == .size)
+        #expect(ConfigOption.from(key: "color") == .color)
         #expect(ConfigOption.from(key: "open") == .open)
         #expect(ConfigOption.from(key: "name") == .name)
         #expect(ConfigOption.from(key: "verbose") == .verbose)
@@ -36,35 +32,20 @@ struct ConfigOptionTests {
     }
 
     @Test
-    func fromAllSynonyms() {
-        #expect(ConfigOption.from(key: "dup") == .duplex)
-        #expect(ConfigOption.from(key: "fb") == .flatbed)
-        #expect(ConfigOption.from(key: "jpg") == .jpeg)
-        #expect(ConfigOption.from(key: "tif") == .tiff)
-        #expect(ConfigOption.from(key: "bw") == .mono)
-        #expect(ConfigOption.from(key: "v") == .verbose)
-        #expect(ConfigOption.from(key: "s") == .scanner)
-        #expect(ConfigOption.from(key: "res") == .resolution)
-        #expect(ConfigOption.from(key: "minResolution") == .resolution)
-        #expect(ConfigOption.from(key: "time") == .browseSecs)
-        #expect(ConfigOption.from(key: "t") == .browseSecs)
-        #expect(ConfigOption.from(key: "exact") == .exactName)
-    }
-
-    @Test
     func fromInvalidKeyReturnsNil() {
         #expect(ConfigOption.from(key: "invalid") == nil)
         #expect(ConfigOption.from(key: "") == nil)
         #expect(ConfigOption.from(key: "Duplex") == nil)
-        #expect(ConfigOption.from(key: "JPEG") == nil)
         #expect(ConfigOption.from(key: "help") == nil)
+        #expect(ConfigOption.from(key: "flatbed") == nil)
+        #expect(ConfigOption.from(key: "jpeg") == nil)
+        #expect(ConfigOption.from(key: "mono") == nil)
     }
 
     @Test
     func typePropertyForFlags() {
         let flagOptions: [ConfigOption] = [
-            .duplex, .batch, .list, .flatbed, .jpeg, .tiff, .png,
-            .legal, .letter, .a4, .mono, .open, .verbose, .exactName, .ocr,
+            .duplex, .batch, .list, .open, .verbose, .exactName, .ocr,
         ]
         for option in flagOptions {
             #expect(option.type == .flag, "Expected \(option) to be .flag")
@@ -74,6 +55,7 @@ struct ConfigOptionTests {
     @Test
     func typePropertyForStrings() {
         let stringOptions: [ConfigOption] = [
+            .input, .format, .size, .color,
             .name, .scanner, .resolution, .browseSecs, .rotate,
         ]
         for option in stringOptions {
@@ -83,16 +65,19 @@ struct ConfigOptionTests {
 
     @Test
     func defaultValues() {
+        #expect(ConfigOption.input.defaultValue == "feeder")
+        #expect(ConfigOption.format.defaultValue == "pdf")
+        #expect(ConfigOption.size.defaultValue == "a4")
+        #expect(ConfigOption.color.defaultValue == "color")
         #expect(ConfigOption.resolution.defaultValue == "150")
         #expect(ConfigOption.browseSecs.defaultValue == "10")
         #expect(ConfigOption.rotate.defaultValue == "0")
     }
 
     @Test
-    func noDefaultValueForFlagsAndOtherStrings() {
+    func noDefaultValueForFlagsAndFreeformStrings() {
         let noDefaultOptions: [ConfigOption] = [
-            .duplex, .batch, .list, .flatbed, .jpeg, .tiff, .png,
-            .legal, .letter, .a4, .mono, .open, .verbose, .exactName, .ocr,
+            .duplex, .batch, .list, .open, .verbose, .exactName, .ocr,
             .name, .scanner,
         ]
         for option in noDefaultOptions {
@@ -102,7 +87,7 @@ struct ConfigOptionTests {
 
     @Test
     func allCasesCount() {
-        #expect(ConfigOption.allCases.count == 20)
+        #expect(ConfigOption.allCases.count == 16)
     }
 
     @Test
@@ -113,12 +98,19 @@ struct ConfigOptionTests {
     }
 
     @Test
-    func synonymsForOptionsWithoutSynonyms() {
-        let noSynonymOptions: [ConfigOption] = [
-            .batch, .list, .png, .legal, .letter, .a4, .open, .name, .ocr, .rotate,
-        ]
-        for option in noSynonymOptions {
-            #expect(option.synonyms.isEmpty, "\(option) should have no synonyms")
-        }
+    func validValuesForEnumOptions() {
+        #expect(ConfigOption.input.validValues != nil)
+        #expect(ConfigOption.format.validValues != nil)
+        #expect(ConfigOption.size.validValues != nil)
+        #expect(ConfigOption.color.validValues != nil)
+    }
+
+    @Test
+    func noValidValuesForFreeformStrings() {
+        #expect(ConfigOption.name.validValues == nil)
+        #expect(ConfigOption.scanner.validValues == nil)
+        #expect(ConfigOption.resolution.validValues == nil)
+        #expect(ConfigOption.browseSecs.validValues == nil)
+        #expect(ConfigOption.rotate.validValues == nil)
     }
 }
