@@ -90,15 +90,15 @@ struct ConfigurationTests {
     }
 
     @Test
-    func defaultMRCFlagIsFalse() throws {
+    func defaultNoMRCFlagIsFalse() throws {
         let config = try makeConfig([])
-        #expect(config.flag(.mrc) == false)
+        #expect(config.flag(.noMRC) == false)
     }
 
     @Test
-    func mrcFlagSet() throws {
-        let config = try makeConfig(["--mrc"])
-        #expect(config.flag(.mrc) == true)
+    func noMRCFlagSet() throws {
+        let config = try makeConfig(["--no-mrc"])
+        #expect(config.flag(.noMRC) == true)
     }
 
     @Test
@@ -109,10 +109,48 @@ struct ConfigurationTests {
 
     @Test
     func mrcWithCustomBackgroundResolution() throws {
-        let config = try makeConfig(["--mrc", "--resolution", "200", "--mrc-resolution", "500"])
-        #expect(config.flag(.mrc) == true)
+        let config = try makeConfig(["--resolution", "200", "--mrc-resolution", "500"])
+        #expect(config.flag(.noMRC) == false)
         #expect(config.string(.resolution) == "200")
         #expect(config.string(.mrcResolution) == "500")
+    }
+
+    // MARK: - isMRCEnabled helper
+
+    @Test
+    func isMRCEnabledDefaultsToTrueForPDF() throws {
+        let config = try makeConfig([])
+        #expect(config.isMRCEnabled == true)
+    }
+
+    @Test
+    func isMRCEnabledFalseWithNoMRCFlag() throws {
+        let config = try makeConfig(["--no-mrc"])
+        #expect(config.isMRCEnabled == false)
+    }
+
+    @Test
+    func isMRCEnabledFalseForJPEGFormat() throws {
+        let config = try makeConfig(["--format", "jpeg"])
+        #expect(config.isMRCEnabled == false)
+    }
+
+    @Test
+    func isMRCEnabledFalseForPNGFormat() throws {
+        let config = try makeConfig(["--format", "png"])
+        #expect(config.isMRCEnabled == false)
+    }
+
+    @Test
+    func isMRCEnabledFalseForTIFFFormat() throws {
+        let config = try makeConfig(["--format", "tiff"])
+        #expect(config.isMRCEnabled == false)
+    }
+
+    @Test
+    func isMRCEnabledFalseWhenBothNoMRCAndNonPDF() throws {
+        let config = try makeConfig(["--no-mrc", "--format", "jpeg"])
+        #expect(config.isMRCEnabled == false)
     }
 
     @Test

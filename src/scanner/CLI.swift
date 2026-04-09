@@ -116,12 +116,12 @@ enum CLI {
                         description: "File format [pdf, jpeg, tiff, png] (default: pdf)"
                     ),
                     ParameterInfoDTO(
-                        name: "--mrc", shortFlag: nil, type: "flag", required: false,
-                        description: "Mixed Raster Content PDF: crisp 1-bit text layer over compressed color background (PDF only)"
+                        name: "--no-mrc", shortFlag: nil, type: "flag", required: false,
+                        description: "Disable Mixed Raster Content output (PDF only). PDF output is MRC by default: crisp 1-bit text layer over a compressed color background."
                     ),
                     ParameterInfoDTO(
                         name: "--mrc-resolution", shortFlag: nil, type: "dpi", required: false,
-                        description: "Text-layer resolution in dpi when --mrc is set (default: 400)"
+                        description: "Text-layer resolution in dpi for MRC PDF output (default: 400)"
                     ),
                 ]),
                 OptionGroupDTO(title: "Page Size", parameters: [
@@ -181,7 +181,10 @@ enum CLI {
                 ),
                 ExampleDTO(command: "scanner list", description: "Show available scanners"),
                 ExampleDTO(command: "scanner --size legal", description: "Scan a legal size page"),
-                ExampleDTO(command: "scanner --mrc", description: "Scan to a Mixed Raster Content PDF with crisp text"),
+                ExampleDTO(
+                    command: "scanner --no-mrc",
+                    description: "Scan to a plain image-per-page PDF (disable MRC)"
+                ),
             ]
         )
         HelpFormatter.printAndExit(text)

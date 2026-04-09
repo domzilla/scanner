@@ -23,7 +23,7 @@ public enum ConfigOption: String, CaseIterable, Sendable {
     case resolution
     case exactName = "exactname"
     case rotate
-    case mrc
+    case noMRC = "no-mrc"
     case mrcResolution = "mrc-resolution"
 
     var type: ConfigOptionType {
@@ -91,10 +91,10 @@ public enum ConfigOption: String, CaseIterable, Sendable {
             "When specified, only the scanner with the exact name specified will be used (no fuzzy matching)"
         case .rotate:
             "Specify degrees to rotate the scanned images"
-        case .mrc:
-            "Produce a Mixed Raster Content PDF: crisp 1-bit text layer over a compressed color background. PDF format only."
+        case .noMRC:
+            "Disable Mixed Raster Content output. PDF output uses MRC by default (crisp 1-bit text layer over a compressed color background); pass this flag to fall back to a plain image-per-page PDF. Ignored for non-PDF formats."
         case .mrcResolution:
-            "Text-layer resolution in dpi when --mrc is set (default: 400). The scanner is driven at this resolution (rounded up to the nearest supported value). If the scanner delivers higher, the color source is downsampled to this resolution before binarization, so the output mask is always at the requested DPI. The background uses --resolution."
+            "Text-layer resolution in dpi for MRC PDF output (default: 400). The scanner is driven at this resolution (rounded up to the nearest supported value). If the scanner delivers higher, the color source is downsampled to this resolution before binarization, so the output mask is always at the requested DPI. The background uses --resolution."
         }
     }
 
@@ -189,6 +189,14 @@ public final class ScanConfiguration: Sendable {
             return value
         }
         return nil
+    }
+
+    /// Whether Mixed Raster Content output should be used for this scan. MRC is
+    /// the default when the output format is PDF; the `--no-mrc` flag opts out.
+    /// For non-PDF formats (jpeg, tiff, png) MRC is never used, and `--no-mrc` is
+    /// silently ignored.
+    var isMRCEnabled: Bool {
+        self.string(.format) == "pdf" && !self.flag(.noMRC)
     }
 
     // MARK: - Parsing

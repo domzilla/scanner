@@ -193,7 +193,7 @@ class ScannerController: NSObject, @unchecked Sendable, ICScannerDeviceDelegate 
         // still uses --resolution, downsampled post-scan.
         let backgroundResolution = Int(self.configuration.string(.resolution) ?? "150") ?? 150
         let desiredResolution: Int
-        if self.configuration.flag(.mrc) {
+        if self.configuration.isMRCEnabled {
             let mrcResolution = Int(self.configuration.string(.mrcResolution) ?? "400") ?? 400
             desiredResolution = max(mrcResolution, backgroundResolution)
         } else {

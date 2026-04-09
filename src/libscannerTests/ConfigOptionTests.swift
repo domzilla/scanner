@@ -27,7 +27,7 @@ struct ConfigOptionTests {
         #expect(ConfigOption.from(key: "exactname") == .exactName)
 
         #expect(ConfigOption.from(key: "rotate") == .rotate)
-        #expect(ConfigOption.from(key: "mrc") == .mrc)
+        #expect(ConfigOption.from(key: "no-mrc") == .noMRC)
         #expect(ConfigOption.from(key: "mrc-resolution") == .mrcResolution)
     }
 
@@ -46,7 +46,7 @@ struct ConfigOptionTests {
     @Test
     func typePropertyForFlags() {
         let flagOptions: [ConfigOption] = [
-            .duplex, .batch, .verbose, .exactName, .mrc,
+            .duplex, .batch, .verbose, .exactName, .noMRC,
         ]
         for option in flagOptions {
             #expect(option.type == .flag, "Expected \(option) to be .flag")
@@ -79,7 +79,7 @@ struct ConfigOptionTests {
     @Test
     func noDefaultValueForFlagsAndFreeformStrings() {
         let noDefaultOptions: [ConfigOption] = [
-            .duplex, .batch, .verbose, .exactName, .mrc,
+            .duplex, .batch, .verbose, .exactName, .noMRC,
             .name, .scanner,
         ]
         for option in noDefaultOptions {
@@ -110,7 +110,7 @@ struct ConfigOptionTests {
         #expect(ConfigOption.verbose.shortFlag == nil)
         #expect(ConfigOption.scanner.shortFlag == nil)
         #expect(ConfigOption.rotate.shortFlag == nil)
-        #expect(ConfigOption.mrc.shortFlag == nil)
+        #expect(ConfigOption.noMRC.shortFlag == nil)
         #expect(ConfigOption.mrcResolution.shortFlag == nil)
     }
 

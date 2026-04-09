@@ -77,13 +77,28 @@ struct OutputProcessorTests {
     }
 
     @Test
-    func combineWithEmptyURLs() throws {
-        let config = try makeConfig([])
+    func combineWithEmptyURLsInPDFKitPath() throws {
+        // PDFKit writes an empty PDFDocument to disk — result is a URL to a
+        // zero-page PDF. In production, ScannerController rejects empty scan
+        // results before calling combine(); this is just a defensive edge case.
+        let config = try makeConfig(["--no-mrc"])
         let processor = OutputProcessor(urls: [], configuration: config)
 
         let result = processor.combine(urls: [])
 
         #expect(result != nil)
+    }
+
+    @Test
+    func combineWithEmptyURLsInMRCPathReturnsNil() throws {
+        // MRCAssembler explicitly refuses to build a zero-page PDF. Same
+        // defensive edge case as above — not reachable in production.
+        let config = try makeConfig([])
+        let processor = OutputProcessor(urls: [], configuration: config)
+
+        let result = processor.combine(urls: [])
+
+        #expect(result == nil)
     }
 
     // MARK: - Output File Extensions
@@ -340,11 +355,15 @@ struct OutputProcessorTests {
 
     // MARK: - MRC
 
+    // MRC is the default for PDF output; the plain combineCreatesValidPDF /
+    // combineWithSinglePage / processWithPDFFormat tests above already exercise
+    // the MRC path. These tests cover the --no-mrc opt-out and a few edge cases.
+
     @Test
-    func mrcCombineCreatesValidPDF() throws {
+    func noMRCFallsBackToPDFKitCombine() throws {
         let url1 = createTempJPEGFile()
         let url2 = createTempJPEGFile()
-        let config = try makeConfig(["--mrc"])
+        let config = try makeConfig(["--no-mrc"])
         let processor = OutputProcessor(urls: [url1, url2], configuration: config)
 
         let result = processor.combine(urls: [url1, url2])
@@ -358,25 +377,10 @@ struct OutputProcessorTests {
     }
 
     @Test
-    func mrcSinglePageProducesOnePagePDF() throws {
-        let url = createTempJPEGFile()
-        let config = try makeConfig(["--mrc"])
-        let processor = OutputProcessor(urls: [url], configuration: config)
-
-        let result = processor.combine(urls: [url])
-
-        #expect(result != nil)
-        if let result {
-            let pdf = PDFDocument(url: result)
-            #expect(pdf?.pageCount == 1)
-        }
-    }
-
-    @Test
-    func processWithMRCFlag() async throws {
+    func processWithNoMRCProducesPDF() async throws {
         let url = createTempJPEGFile()
         let outputDir = makeTempOutputDir()
-        let config = try makeConfig(["--mrc", "--name", "mrc_page"])
+        let config = try makeConfig(["--no-mrc", "--name", "no_mrc_page"])
         let processor = OutputProcessor(urls: [url], configuration: config)
 
         let savedCwd = FileManager.default.currentDirectoryPath
@@ -386,16 +390,16 @@ struct OutputProcessorTests {
         let result = await processor.process()
 
         #expect(result == true)
-        #expect(FileManager.default.fileExists(atPath: "\(outputDir)/mrc_page.pdf"))
+        #expect(FileManager.default.fileExists(atPath: "\(outputDir)/no_mrc_page.pdf"))
     }
 
     @Test
-    func mrcFlagIgnoredForNonPDFFormat() async throws {
-        // --mrc is only meaningful when format is pdf. For jpeg/tiff/png the flag should
-        // be silently ignored and the non-MRC output path used.
+    func noMRCFlagIgnoredForNonPDFFormat() async throws {
+        // --no-mrc is only meaningful when format is pdf. For jpeg/tiff/png the
+        // flag should be silently ignored and the normal non-PDF output path used.
         let url = createTempJPEGFile()
         let outputDir = makeTempOutputDir()
-        let config = try makeConfig(["--mrc", "--format", "jpeg", "--name", "mrc_jpeg"])
+        let config = try makeConfig(["--no-mrc", "--format", "jpeg", "--name", "no_mrc_jpeg"])
         let processor = OutputProcessor(urls: [url], configuration: config)
 
         let savedCwd = FileManager.default.currentDirectoryPath
@@ -405,6 +409,6 @@ struct OutputProcessorTests {
         let result = await processor.process()
 
         #expect(result == true)
-        #expect(FileManager.default.fileExists(atPath: "\(outputDir)/mrc_jpeg.jpg"))
+        #expect(FileManager.default.fileExists(atPath: "\(outputDir)/no_mrc_jpeg.jpg"))
     }
 }
