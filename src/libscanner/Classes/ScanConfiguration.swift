@@ -26,10 +26,11 @@ public enum ConfigOption: String, CaseIterable, Sendable {
     case noMRC = "no-mrc"
     case mrcResolution = "mrc-resolution"
     case jpegQuality = "jpeg-quality"
+    case mrcJpegQuality = "mrc-jpeg-quality"
 
     var type: ConfigOptionType {
         switch self {
-        case .name, .scanner, .resolution, .rotate, .mrcResolution, .jpegQuality,
+        case .name, .scanner, .resolution, .rotate, .mrcResolution, .jpegQuality, .mrcJpegQuality,
              .input, .format, .size, .color:
             .string
         default:
@@ -46,7 +47,8 @@ public enum ConfigOption: String, CaseIterable, Sendable {
         case .resolution: "150"
         case .rotate: "0"
         case .mrcResolution: "400"
-        case .jpegQuality: "50"
+        case .jpegQuality: "60"
+        case .mrcJpegQuality: "20"
         default: nil
         }
     }
@@ -98,7 +100,9 @@ public enum ConfigOption: String, CaseIterable, Sendable {
         case .mrcResolution:
             "Text-layer resolution in dpi for MRC PDF output (default: 400). The scanner is driven at this resolution (rounded up to the nearest supported value). If the scanner delivers higher, the color source is downsampled to this resolution before binarization, so the output mask is always at the requested DPI. The background uses --resolution."
         case .jpegQuality:
-            "JPEG quality (0-100) for the MRC background layer (default: 50). Higher values produce better background quality at the cost of larger files. Only affects MRC PDF output — has no effect on --format jpeg or on rotated output."
+            "JPEG quality (0-100) for the no-MRC PDF background (default: 60). Used when --no-mrc is set: because text is being JPEG-encoded directly, the quality floor has to stay relatively high to keep glyphs legible. Has no effect on --format jpeg, on MRC PDF output (see --mrc-jpeg-quality), or on rotated output."
+        case .mrcJpegQuality:
+            "JPEG quality (0-100) for the MRC background layer (default: 20). Because text is stored separately in a crisp 1-bit mask, the color background can be compressed very aggressively without harming legibility. Only affects MRC PDF output — the plain no-MRC PDF path uses --jpeg-quality instead."
         }
     }
 

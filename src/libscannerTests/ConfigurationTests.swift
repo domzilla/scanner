@@ -118,7 +118,7 @@ struct ConfigurationTests {
     @Test
     func defaultJPEGQuality() throws {
         let config = try makeConfig([])
-        #expect(config.string(.jpegQuality) == "50")
+        #expect(config.string(.jpegQuality) == "60")
     }
 
     @Test
@@ -130,9 +130,36 @@ struct ConfigurationTests {
     @Test
     func jpegQualityAcceptsNonNumericStringForLaterHandling() throws {
         // The parser doesn't validate numeric values (matches --resolution behavior);
-        // MRCAssembler is responsible for clamping / falling back at use time.
+        // PDFAssembler is responsible for clamping / falling back at use time.
         let config = try makeConfig(["--jpeg-quality", "garbage"])
         #expect(config.string(.jpegQuality) == "garbage")
+    }
+
+    @Test
+    func defaultMRCJPEGQuality() throws {
+        let config = try makeConfig([])
+        #expect(config.string(.mrcJpegQuality) == "20")
+    }
+
+    @Test
+    func mrcJpegQualityOverride() throws {
+        let config = try makeConfig(["--mrc-jpeg-quality", "35"])
+        #expect(config.string(.mrcJpegQuality) == "35")
+    }
+
+    @Test
+    func mrcJpegQualityAcceptsNonNumericStringForLaterHandling() throws {
+        // Same rationale as --jpeg-quality: the parser leaves validation to
+        // PDFAssembler so that non-numeric values degrade to the default at use time.
+        let config = try makeConfig(["--mrc-jpeg-quality", "garbage"])
+        #expect(config.string(.mrcJpegQuality) == "garbage")
+    }
+
+    @Test
+    func jpegAndMRCJpegQualityAreIndependent() throws {
+        let config = try makeConfig(["--jpeg-quality", "75", "--mrc-jpeg-quality", "15"])
+        #expect(config.string(.jpegQuality) == "75")
+        #expect(config.string(.mrcJpegQuality) == "15")
     }
 
     // MARK: - isMRCEnabled helper

@@ -124,8 +124,12 @@ enum CLI {
                         description: "Text-layer resolution in dpi for MRC PDF output (default: 400)"
                     ),
                     ParameterInfoDTO(
+                        name: "--mrc-jpeg-quality", shortFlag: nil, type: "0-100", required: false,
+                        description: "JPEG quality for the MRC background layer (default: 20). Safe to run low because the 1-bit text mask preserves glyph sharpness."
+                    ),
+                    ParameterInfoDTO(
                         name: "--jpeg-quality", shortFlag: nil, type: "0-100", required: false,
-                        description: "JPEG quality for the MRC background layer (default: 50, higher = better quality, larger file)"
+                        description: "JPEG quality for the no-MRC PDF background (default: 60, used with --no-mrc). Kept higher than --mrc-jpeg-quality because text is JPEG-encoded directly in this mode."
                     ),
                 ]),
                 OptionGroupDTO(title: "Page Size", parameters: [

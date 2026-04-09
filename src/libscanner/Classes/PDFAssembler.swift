@@ -1,5 +1,5 @@
 //
-//  MRCAssembler.swift
+//  PDFAssembler.swift
 //  scanner
 //
 //  Created by Dominic Rodemer on 09.04.26.
@@ -13,25 +13,34 @@ import ImageIO
 import UniformTypeIdentifiers
 import Vision
 
-// MARK: - MRCAssembler
+// MARK: - PDFAssembler
 
-/// Builds a Mixed Raster Content (MRC) PDF from scanned page images.
+/// Builds a multi-page PDF from scanned page images. Handles both Mixed Raster
+/// Content (MRC) output and the plain single-image-per-page fallback via a single
+/// hand-written PDF pipeline so that both branches honour `--resolution` and
+/// `--jpeg-quality` identically.
 ///
-/// For each page the assembler produces two layers composed on a hand-written PDF page:
-/// 1. A low-resolution JPEG color background (the full page at the configured `--resolution`).
-/// 2. A high-resolution 1-bit text foreground. Text regions are detected with Vision's
-///    `VNRecognizeTextRequest` and binarized inside those regions with Sauvola adaptive
-///    thresholding. The resulting mask is CCITT Group 4 encoded (via `NSBitmapImageRep`)
-///    and embedded as a PDF `/ImageMask` XObject drawn with a black fill color, producing
-///    crisp text independent of the background's JPEG compression.
+/// In MRC mode each page is composed from two layers:
+/// 1. A low-resolution JPEG color background (downsampled to `--resolution`).
+/// 2. A high-resolution 1-bit text foreground. Text regions are detected with
+///    Vision's `VNRecognizeTextRequest` and binarized inside those regions with
+///    Sauvola adaptive thresholding. The resulting mask is CCITT Group 4 encoded
+///    (via `NSBitmapImageRep`) and embedded as a PDF `/ImageMask` XObject drawn
+///    with a black fill color, producing crisp text independent of the
+///    background's JPEG compression.
 ///
-/// CCITT Group 4 compression on the 1-bit text layer is roughly 2x smaller than the
-/// Flate (zlib) compression that `CGPDFContext` uses by default, which is why this type
-/// writes the PDF structure by hand instead of going through `CGPDFContext`.
+/// In no-MRC mode each page holds only the downsampled JPEG background — no
+/// text detection, no mask. The background is compressed with `--jpeg-quality`
+/// (higher default than the MRC background because text is being JPEG-encoded
+/// directly and needs to stay legible).
 ///
-/// This preserves photos, logos, and other non-text content in the JPEG background layer
-/// untouched, while keeping text sharp at the native scan resolution.
-final class MRCAssembler: @unchecked Sendable {
+/// CCITT Group 4 compression on the 1-bit text layer is roughly 2x smaller than
+/// the Flate (zlib) compression that `CGPDFContext` uses by default, which is why
+/// this type writes the PDF structure by hand instead of going through
+/// `CGPDFContext`. The same hand-written pipeline is used for the no-MRC case so
+/// that users get full control over the output JPEG quality (Apple's
+/// `PDFDocument.write` silently picks its own aggressive defaults).
+final class PDFAssembler: @unchecked Sendable {
     let configuration: ScanConfiguration
 
     init(configuration: ScanConfiguration) {
@@ -40,7 +49,7 @@ final class MRCAssembler: @unchecked Sendable {
 
     // MARK: - Public API
 
-    /// Assembles the given page URLs into a single multi-page MRC PDF in the system
+    /// Assembles the given page URLs into a single multi-page PDF in the system
     /// temporary directory. Returns the output URL, or `nil` on failure.
     func assemble(urls: [URL]) -> URL? {
         guard !urls.isEmpty else { return nil }
@@ -49,9 +58,9 @@ final class MRCAssembler: @unchecked Sendable {
         var pageRecords: [PageRecord] = []
 
         for (index, url) in urls.enumerated() {
-            Logger.verbose("MRC: assembling page \(index + 1) / \(urls.count) from \(url.lastPathComponent)")
+            Logger.verbose("PDF: assembling page \(index + 1) / \(urls.count) from \(url.lastPathComponent)")
             guard let record = self.writePageContent(from: url, to: pdf) else {
-                Logger.debug("MRC: failed to add page for \(url.lastPathComponent)")
+                Logger.debug("PDF: failed to add page for \(url.lastPathComponent)")
                 return nil
             }
             pageRecords.append(record)
@@ -125,16 +134,20 @@ final class MRCAssembler: @unchecked Sendable {
         let mediaBox: CGRect
     }
 
-    /// Loads the scan, writes the background JPEG, text mask, and content stream as
-    /// indirect objects in the PDF writer, and returns the collected references.
+    /// Loads the scan, writes the background JPEG (and, in MRC mode, the text mask)
+    /// and the page content stream as indirect objects in the PDF writer, then returns
+    /// the collected references.
     private func writePageContent(from url: URL, to pdf: PDFWriter) -> PageRecord? {
         guard let source = self.loadImage(at: url) else {
             return nil
         }
 
-        let nativeDPI = self.readDPI(of: url) ?? self.configuredMRCResolution
-        let textLayerDPI = self.configuredMRCResolution
+        let isMRC = self.configuration.isMRCEnabled
         let backgroundDPI = self.configuredBackgroundResolution
+        // Fallback DPI for the rare case where the scanned file has no DPI metadata:
+        // in MRC mode the scanner is driven at --mrc-resolution, otherwise at --resolution.
+        let fallbackDPI = isMRC ? self.configuredMRCResolution : backgroundDPI
+        let nativeDPI = self.readDPI(of: url) ?? fallbackDPI
         let backgroundQuality = self.configuredBackgroundQuality
 
         // Media box is derived from the native scan's physical dimensions and is
@@ -144,7 +157,9 @@ final class MRCAssembler: @unchecked Sendable {
         let heightPoints = CGFloat(source.height) * 72.0 / nativeDPI
         let mediaBox = CGRect(x: 0, y: 0, width: widthPoints, height: heightPoints)
 
-        // Background XObject: downsample native source to --resolution.
+        // Background XObject: downsample native source to --resolution. This runs in
+        // both MRC and no-MRC modes so that `--resolution` is the exact output DPI of
+        // the embedded JPEG regardless of the scanner's native capture resolution.
         guard
             let background = self.backgroundJPEGBytes(
                 source,
@@ -153,7 +168,7 @@ final class MRCAssembler: @unchecked Sendable {
                 quality: backgroundQuality
             ) else
         {
-            Logger.debug("MRC: failed to encode background JPEG")
+            Logger.debug("PDF: failed to encode background JPEG")
             return nil
         }
 
@@ -171,44 +186,46 @@ final class MRCAssembler: @unchecked Sendable {
         """
         let bgRef = pdf.writeStreamObject(dict: bgDict, stream: background.data)
 
-        // Text mask XObject (optional — some pages may have no detectable text).
-        // Downsample the color source to --mrc-resolution before binarization when
-        // the scanner delivered a higher DPI than requested, so the user always gets
-        // exactly the text-layer resolution they asked for. Downsampling happens on
-        // the color (8-bit) image rather than on the finished 1-bit mask, so text
-        // stroke edges stay clean.
-        let maskColorSource: CGImage
-        if
-            nativeDPI > textLayerDPI,
-            let downsampled = self.downsampleColorImage(source, fromDPI: nativeDPI, toDPI: textLayerDPI)
-        {
-            maskColorSource = downsampled
-            Logger.verbose(
-                "MRC: scanner delivered \(Int(nativeDPI)) DPI; downsampling to \(Int(textLayerDPI)) DPI for text layer"
-            )
-        } else {
-            maskColorSource = source
-            Logger.verbose("MRC: using \(Int(nativeDPI)) DPI native scan for text layer")
-        }
-
+        // Text mask XObject — MRC only. Downsample the color source to --mrc-resolution
+        // before binarization when the scanner delivered a higher DPI than requested,
+        // so the output mask is always at exactly the requested text-layer resolution.
+        // Downsampling happens on the color (8-bit) image rather than on the finished
+        // 1-bit mask, so text stroke edges stay clean.
         var maskRef: Int?
-        if let mask = self.textMaskCCITTBytes(for: maskColorSource) {
-            let maskDict = """
-            <<
-              /Type /XObject
-              /Subtype /Image
-              /Width \(mask.width)
-              /Height \(mask.height)
-              /BitsPerComponent 1
-              /ImageMask true
-              /Filter /CCITTFaxDecode
-              /DecodeParms << /K -1 /Columns \(mask.width) /Rows \(mask.height) >>
-              /Length \(mask.data.count)
-            >>
-            """
-            maskRef = pdf.writeStreamObject(dict: maskDict, stream: mask.data)
-        } else {
-            Logger.verbose("MRC: no text detected on this page; emitting background only")
+        if isMRC {
+            let textLayerDPI = self.configuredMRCResolution
+            let maskColorSource: CGImage
+            if
+                nativeDPI > textLayerDPI,
+                let downsampled = self.downsampleColorImage(source, fromDPI: nativeDPI, toDPI: textLayerDPI)
+            {
+                maskColorSource = downsampled
+                Logger.verbose(
+                    "MRC: scanner delivered \(Int(nativeDPI)) DPI; downsampling to \(Int(textLayerDPI)) DPI for text layer"
+                )
+            } else {
+                maskColorSource = source
+                Logger.verbose("MRC: using \(Int(nativeDPI)) DPI native scan for text layer")
+            }
+
+            if let mask = self.textMaskCCITTBytes(for: maskColorSource) {
+                let maskDict = """
+                <<
+                  /Type /XObject
+                  /Subtype /Image
+                  /Width \(mask.width)
+                  /Height \(mask.height)
+                  /BitsPerComponent 1
+                  /ImageMask true
+                  /Filter /CCITTFaxDecode
+                  /DecodeParms << /K -1 /Columns \(mask.width) /Rows \(mask.height) >>
+                  /Length \(mask.data.count)
+                >>
+                """
+                maskRef = pdf.writeStreamObject(dict: maskDict, stream: mask.data)
+            } else {
+                Logger.verbose("MRC: no text detected on this page; emitting background only")
+            }
         }
 
         // Content stream: draw the background across the media box, then (if present)
@@ -284,12 +301,24 @@ final class MRCAssembler: @unchecked Sendable {
         return CGFloat(Int(raw) ?? 150)
     }
 
-    /// JPEG quality for the background layer. The raw `--jpeg-quality` value is
-    /// an integer percentage (0–100) that we map linearly to Core Graphics's 0.0–1.0
-    /// range. Non-numeric or out-of-range values fall back to the default of 50.
+    /// JPEG quality for the page background. In MRC mode we read `--mrc-jpeg-quality`
+    /// (aggressive default of 20 — the 1-bit mask protects text so the background can
+    /// be crunched). In no-MRC mode we read `--jpeg-quality` (default 60 — text is
+    /// being JPEG-encoded directly so the quality floor has to stay higher). The raw
+    /// integer percentage is clamped to 0–100 and mapped to Core Graphics's 0.0–1.0
+    /// range; non-numeric values fall back to the option default.
     private var configuredBackgroundQuality: CGFloat {
-        let raw = self.configuration.string(.jpegQuality) ?? "50"
-        let parsed = Int(raw) ?? 50
+        let option: ConfigOption
+        let fallback: Int
+        if self.configuration.isMRCEnabled {
+            option = .mrcJpegQuality
+            fallback = 20
+        } else {
+            option = .jpegQuality
+            fallback = 60
+        }
+        let raw = self.configuration.string(option) ?? String(fallback)
+        let parsed = Int(raw) ?? fallback
         let clamped = max(0, min(100, parsed))
         return CGFloat(clamped) / 100.0
     }
@@ -791,11 +820,11 @@ final class MRCAssembler: @unchecked Sendable {
 /// Minimal hand-rolled PDF writer. Accumulates objects into a single buffer and
 /// emits an xref table and trailer at finalize time.
 ///
-/// This writer only supports what MRCAssembler needs: indirect objects with
+/// This writer only supports what `PDFAssembler` needs: indirect objects with
 /// arbitrary dictionaries, indirect stream objects with arbitrary payloads, and a
 /// single trailer referencing a catalog object. Forward references are supported
 /// by having callers compute the target object number up front (see the `Pages`
-/// object in `MRCAssembler.assemble(urls:)`).
+/// object in `PDFAssembler.assemble(urls:)`).
 private final class PDFWriter {
     private var buffer = Data()
     private var offsets: [Int] = [0]

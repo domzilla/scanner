@@ -9,7 +9,6 @@
 import AppKit
 import CoreImage
 import Foundation
-import Quartz
 import UniformTypeIdentifiers
 
 // MARK: - OutputProcessor
@@ -56,23 +55,8 @@ class OutputProcessor: @unchecked Sendable {
     func combine(urls: [URL]) -> URL? {
         // Suppress CoreGraphics framework noise written to stderr during PDF operations
         self.suppressingStderr {
-            if self.configuration.isMRCEnabled {
-                let assembler = MRCAssembler(configuration: self.configuration)
-                return assembler.assemble(urls: urls)
-            }
-
-            let document = PDFDocument()
-
-            for url in urls {
-                if let page = PDFPage(image: NSImage(byReferencing: url)) {
-                    document.insert(page, at: document.pageCount)
-                }
-            }
-
-            let tempFilePath = "\(NSTemporaryDirectory())/scan.pdf"
-            document.write(toFile: tempFilePath)
-
-            return URL(fileURLWithPath: tempFilePath)
+            let assembler = PDFAssembler(configuration: self.configuration)
+            return assembler.assemble(urls: urls)
         }
     }
 

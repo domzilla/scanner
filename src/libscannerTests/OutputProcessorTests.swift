@@ -77,22 +77,21 @@ struct OutputProcessorTests {
     }
 
     @Test
-    func combineWithEmptyURLsInPDFKitPath() throws {
-        // PDFKit writes an empty PDFDocument to disk — result is a URL to a
-        // zero-page PDF. In production, ScannerController rejects empty scan
-        // results before calling combine(); this is just a defensive edge case.
+    func combineWithEmptyURLsInNoMRCPathReturnsNil() throws {
+        // PDFAssembler explicitly refuses to build a zero-page PDF in both branches.
+        // In production, ScannerController rejects empty scan results before calling
+        // combine(); this is just a defensive edge case.
         let config = try makeConfig(["--no-mrc"])
         let processor = OutputProcessor(urls: [], configuration: config)
 
         let result = processor.combine(urls: [])
 
-        #expect(result != nil)
+        #expect(result == nil)
     }
 
     @Test
     func combineWithEmptyURLsInMRCPathReturnsNil() throws {
-        // MRCAssembler explicitly refuses to build a zero-page PDF. Same
-        // defensive edge case as above — not reachable in production.
+        // Same defensive edge case as above — not reachable in production.
         let config = try makeConfig([])
         let processor = OutputProcessor(urls: [], configuration: config)
 
@@ -360,7 +359,10 @@ struct OutputProcessorTests {
     // the MRC path. These tests cover the --no-mrc opt-out and a few edge cases.
 
     @Test
-    func noMRCFallsBackToPDFKitCombine() throws {
+    func noMRCUsesPDFAssemblerWithoutMask() throws {
+        // --no-mrc routes through PDFAssembler with the mask branch disabled,
+        // yielding a plain image-per-page PDF that honours --jpeg-quality /
+        // --resolution exactly like the MRC path.
         let url1 = createTempJPEGFile()
         let url2 = createTempJPEGFile()
         let config = try makeConfig(["--no-mrc"])
