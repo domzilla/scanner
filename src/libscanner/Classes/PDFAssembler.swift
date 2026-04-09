@@ -22,12 +22,14 @@ import Vision
 ///
 /// In MRC mode each page is composed from two layers:
 /// 1. A low-resolution JPEG color background (downsampled to `--resolution`).
-/// 2. A high-resolution 1-bit text foreground. Text regions are detected with
-///    Vision's `VNRecognizeTextRequest` and binarized inside those regions with
-///    Sauvola adaptive thresholding. The resulting mask is CCITT Group 4 encoded
-///    (via `NSBitmapImageRep`) and embedded as a PDF `/ImageMask` XObject drawn
-///    with a black fill color, producing crisp text independent of the
-///    background's JPEG compression.
+/// 2. One or more high-resolution 1-bit text foregrounds. Text regions are
+///    detected with Vision's `VNRecognizeTextRequest`, each region's dominant
+///    ink color is sampled from the color source, and regions are clustered by
+///    color. One `/ImageMask` XObject is emitted per color cluster, encoded
+///    with CCITT Group 4 (via `NSBitmapImageRep`), and drawn with the cluster's
+///    fill color. This preserves colored headlines (e.g. orange titles) instead
+///    of rendering all text as black while still producing crisp edges
+///    independent of the background's JPEG compression.
 ///
 /// In no-MRC mode each page holds only the downsampled JPEG background — no
 /// text detection, no mask. The background is compressed with `--jpeg-quality`
@@ -81,14 +83,11 @@ final class PDFAssembler: @unchecked Sendable {
             pdf.writeLine(
                 "  /MediaBox [0 0 \(Self.format(record.mediaBox.width)) \(Self.format(record.mediaBox.height))]"
             )
-            if let maskRef = record.maskObjectRef {
-                pdf
-                    .writeLine(
-                        "  /Resources << /XObject << /Bg \(record.backgroundObjectRef) 0 R /Mask \(maskRef) 0 R >> >>"
-                    )
-            } else {
-                pdf.writeLine("  /Resources << /XObject << /Bg \(record.backgroundObjectRef) 0 R >> >>")
+            var xObjects = "/Bg \(record.backgroundObjectRef) 0 R"
+            for (i, mask) in record.maskRefs.enumerated() {
+                xObjects += " /Mask\(i + 1) \(mask.objectRef) 0 R"
             }
+            pdf.writeLine("  /Resources << /XObject << \(xObjects) >> >>")
             pdf.writeLine("  /Contents \(record.contentObjectRef) 0 R")
             pdf.writeLine(">>")
             pdf.endObject()
@@ -129,10 +128,32 @@ final class PDFAssembler: @unchecked Sendable {
     /// the final `/Page` dictionary after all pages have been written.
     private struct PageRecord {
         let backgroundObjectRef: Int
-        let maskObjectRef: Int?
+        let maskRefs: [MaskRef]
         let contentObjectRef: Int
         let mediaBox: CGRect
     }
+
+    /// Reference to a single per-color mask XObject together with the fill color it
+    /// should be drawn with. One `MaskRef` is emitted per detected text-color cluster.
+    private struct MaskRef {
+        let objectRef: Int
+        let r: CGFloat
+        let g: CGFloat
+        let b: CGFloat
+    }
+
+    /// Encoded mask bytes plus the cluster fill color, returned by the text-mask
+    /// pipeline for each color group.
+    private struct MaskEntry {
+        let data: Data
+        let width: Int
+        let height: Int
+        let r: CGFloat
+        let g: CGFloat
+        let b: CGFloat
+    }
+
+    private typealias Box = (x0: Int, y0: Int, x1: Int, y1: Int)
 
     /// Loads the scan, writes the background JPEG (and, in MRC mode, the text mask)
     /// and the page content stream as indirect objects in the PDF writer, then returns
@@ -186,12 +207,12 @@ final class PDFAssembler: @unchecked Sendable {
         """
         let bgRef = pdf.writeStreamObject(dict: bgDict, stream: background.data)
 
-        // Text mask XObject — MRC only. Downsample the color source to --mrc-resolution
+        // Text mask XObjects — MRC only. Downsample the color source to --mrc-resolution
         // before binarization when the scanner delivered a higher DPI than requested,
-        // so the output mask is always at exactly the requested text-layer resolution.
+        // so the output masks are always at exactly the requested text-layer resolution.
         // Downsampling happens on the color (8-bit) image rather than on the finished
-        // 1-bit mask, so text stroke edges stay clean.
-        var maskRef: Int?
+        // 1-bit masks, so text stroke edges stay clean.
+        var maskRefs: [MaskRef] = []
         if isMRC {
             let textLayerDPI = self.configuredMRCResolution
             let maskColorSource: CGImage
@@ -208,39 +229,42 @@ final class PDFAssembler: @unchecked Sendable {
                 Logger.verbose("MRC: using \(Int(nativeDPI)) DPI native scan for text layer")
             }
 
-            if let mask = self.textMaskCCITTBytes(for: maskColorSource) {
+            let entries = self.textMaskEntries(for: maskColorSource)
+            if entries.isEmpty {
+                Logger.verbose("MRC: no text detected on this page; emitting background only")
+            }
+            for entry in entries {
                 let maskDict = """
                 <<
                   /Type /XObject
                   /Subtype /Image
-                  /Width \(mask.width)
-                  /Height \(mask.height)
+                  /Width \(entry.width)
+                  /Height \(entry.height)
                   /BitsPerComponent 1
                   /ImageMask true
                   /Filter /CCITTFaxDecode
-                  /DecodeParms << /K -1 /Columns \(mask.width) /Rows \(mask.height) >>
-                  /Length \(mask.data.count)
+                  /DecodeParms << /K -1 /Columns \(entry.width) /Rows \(entry.height) >>
+                  /Length \(entry.data.count)
                 >>
                 """
-                maskRef = pdf.writeStreamObject(dict: maskDict, stream: mask.data)
-            } else {
-                Logger.verbose("MRC: no text detected on this page; emitting background only")
+                let ref = pdf.writeStreamObject(dict: maskDict, stream: entry.data)
+                maskRefs.append(MaskRef(objectRef: ref, r: entry.r, g: entry.g, b: entry.b))
             }
         }
 
-        // Content stream: draw the background across the media box, then (if present)
-        // draw the 1-bit mask with a black fill color. Image XObjects are drawn in the
-        // unit square; the `cm` operator scales them to fill the page.
+        // Content stream: draw the background across the media box, then draw each
+        // per-color 1-bit mask with its cluster fill color. Image XObjects are drawn
+        // in the unit square; the `cm` operator scales them to fill the page.
         var content = ""
         content += "q\n"
         content += "\(Self.format(widthPoints)) 0 0 \(Self.format(heightPoints)) 0 0 cm\n"
         content += "/Bg Do\n"
         content += "Q\n"
-        if maskRef != nil {
+        for (i, mask) in maskRefs.enumerated() {
             content += "q\n"
-            content += "0 0 0 rg\n"
+            content += "\(Self.format(mask.r)) \(Self.format(mask.g)) \(Self.format(mask.b)) rg\n"
             content += "\(Self.format(widthPoints)) 0 0 \(Self.format(heightPoints)) 0 0 cm\n"
-            content += "/Mask Do\n"
+            content += "/Mask\(i + 1) Do\n"
             content += "Q\n"
         }
         let contentData = Data(content.utf8)
@@ -253,7 +277,7 @@ final class PDFAssembler: @unchecked Sendable {
 
         return PageRecord(
             backgroundObjectRef: bgRef,
-            maskObjectRef: maskRef,
+            maskRefs: maskRefs,
             contentObjectRef: contentRef,
             mediaBox: mediaBox
         )
@@ -392,72 +416,127 @@ final class PDFAssembler: @unchecked Sendable {
 
     // MARK: - Text mask pipeline
 
-    /// Builds a CCITT Group 4 compressed 1-bit text mask for the given color page,
-    /// or `nil` if no text regions were detected (in which case the page falls back
-    /// to background-only).
-    private func textMaskCCITTBytes(for color: CGImage) -> (data: Data, width: Int, height: Int)? {
+    /// Builds one CCITT Group 4 compressed 1-bit text mask per detected ink-color
+    /// cluster on the given color page. Returns an empty array if no text regions
+    /// were detected (in which case the page falls back to background-only).
+    ///
+    /// Color clustering: the page is rendered to RGBA once, text regions are
+    /// detected with Vision, each region's dominant ink color is sampled from its
+    /// darkest ~20% of pixels, and regions are grouped greedily into clusters with
+    /// a ΔRGB threshold. Each cluster produces a dedicated mask covering only the
+    /// regions assigned to it, which the content stream then fills with the
+    /// cluster's average color. Scanned black-text-only pages collapse to a single
+    /// cluster matching the previous single-mask behavior.
+    private func textMaskEntries(for color: CGImage) -> [MaskEntry] {
         let width = color.width
         let height = color.height
+        let pixelCount = width * height
 
-        guard let grayBuffer = self.renderGrayscale(color) else {
-            return nil
+        guard let rgba = self.renderRGBA(color) else {
+            return []
         }
-        defer { grayBuffer.deallocate() }
+        defer { rgba.deallocate() }
+
+        // Derive grayscale from the RGBA buffer so color sampling and Sauvola
+        // thresholding operate on bit-identical pixel data.
+        let gray = UnsafeMutablePointer<UInt8>.allocate(capacity: pixelCount)
+        defer { gray.deallocate() }
+        for i in 0..<pixelCount {
+            let r = Int(rgba[i * 4])
+            let g = Int(rgba[i * 4 + 1])
+            let b = Int(rgba[i * 4 + 2])
+            gray[i] = UInt8((r * 299 + g * 587 + b * 114) / 1000)
+        }
 
         let boxes = self.detectTextBoxes(in: color)
         if boxes.isEmpty {
-            return nil
+            return []
         }
 
-        let inBoxMask = self.buildInBoxMask(boxes: boxes, width: width, height: height)
-        defer { inBoxMask.deallocate() }
+        let clusters = self.clusterBoxesByInkColor(
+            boxes: boxes,
+            rgba: rgba,
+            width: width,
+            height: height
+        )
+        if clusters.isEmpty {
+            return []
+        }
+        Logger.verbose("MRC: grouped text into \(clusters.count) color cluster(s)")
 
         guard
             let (integral, integralSq) = self.buildIntegralImages(
-                grayBuffer,
+                gray,
                 width: width,
                 height: height
             ) else
         {
-            return nil
+            return []
         }
         defer {
             integral.deallocate()
             integralSq.deallocate()
         }
 
-        let maskBuffer = self.runSauvola(
-            gray: grayBuffer,
-            inBox: inBoxMask,
-            integral: integral,
-            integralSq: integralSq,
-            width: width,
-            height: height
-        )
-        defer { maskBuffer.deallocate() }
+        var entries: [MaskEntry] = []
+        entries.reserveCapacity(clusters.count)
+        for cluster in clusters {
+            let inBoxMask = self.buildInBoxMask(boxes: cluster.boxes, width: width, height: height)
+            defer { inBoxMask.deallocate() }
 
-        return self.ccittG4Encode(inkBuffer: maskBuffer, width: width, height: height)
+            let maskBuffer = self.runSauvola(
+                gray: gray,
+                inBox: inBoxMask,
+                integral: integral,
+                integralSq: integralSq,
+                width: width,
+                height: height
+            )
+            defer { maskBuffer.deallocate() }
+
+            guard
+                let encoded = self.ccittG4Encode(
+                    inkBuffer: maskBuffer,
+                    width: width,
+                    height: height
+                ) else
+            {
+                continue
+            }
+
+            entries.append(
+                MaskEntry(
+                    data: encoded.data,
+                    width: encoded.width,
+                    height: encoded.height,
+                    r: cluster.r,
+                    g: cluster.g,
+                    b: cluster.b
+                )
+            )
+        }
+        return entries
     }
 
-    // MARK: - Grayscale rendering
+    // MARK: - RGBA rendering
 
-    private func renderGrayscale(_ image: CGImage) -> UnsafeMutablePointer<UInt8>? {
+    private func renderRGBA(_ image: CGImage) -> UnsafeMutablePointer<UInt8>? {
         let width = image.width
         let height = image.height
-        let capacity = width * height
+        let capacity = width * height * 4
         let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: capacity)
         buffer.initialize(repeating: 0, count: capacity)
 
-        let space = CGColorSpaceCreateDeviceGray()
+        let space = CGColorSpaceCreateDeviceRGB()
         guard
             let ctx = CGContext(
                 data: buffer,
                 width: width,
                 height: height,
                 bitsPerComponent: 8,
-                bytesPerRow: width,
+                bytesPerRow: width * 4,
                 space: space,
-                bitmapInfo: CGImageAlphaInfo.none.rawValue
+                bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
             ) else
         {
             buffer.deallocate()
@@ -468,12 +547,164 @@ final class PDFAssembler: @unchecked Sendable {
         return buffer
     }
 
+    // MARK: - Ink color sampling and clustering
+
+    /// Mutable cluster state used during greedy color clustering.
+    private struct ColorCluster {
+        var boxes: [Box]
+        var r: CGFloat
+        var g: CGFloat
+        var b: CGFloat
+        var count: Int
+    }
+
+    /// Partitions text boxes into color clusters by sampling the dominant ink
+    /// color of each box and merging boxes whose colors are within `distanceThreshold`
+    /// (normalized RGB Euclidean distance). Capped at `maxClusters` to keep the
+    /// number of mask XObjects bounded on noisy pages.
+    private func clusterBoxesByInkColor(
+        boxes: [Box],
+        rgba: UnsafeMutablePointer<UInt8>,
+        width: Int,
+        height _: Int
+    )
+        -> [ColorCluster]
+    {
+        let distanceThreshold = 0.18
+        let maxClusters = 8
+
+        var clusters: [ColorCluster] = []
+        for box in boxes {
+            guard
+                let color = self.dominantInkColor(
+                    in: box,
+                    rgba: rgba,
+                    width: width
+                ) else
+            {
+                continue
+            }
+
+            var bestIndex: Int?
+            var bestDistance = Double.infinity
+            for (i, cluster) in clusters.enumerated() {
+                let dr = Double(cluster.r - color.r)
+                let dg = Double(cluster.g - color.g)
+                let db = Double(cluster.b - color.b)
+                let d = (dr * dr + dg * dg + db * db).squareRoot()
+                if d < bestDistance {
+                    bestDistance = d
+                    bestIndex = i
+                }
+            }
+
+            if let idx = bestIndex, bestDistance < distanceThreshold {
+                self.mergeColor(into: &clusters[idx], box: box, color: color)
+            } else if clusters.count < maxClusters {
+                clusters.append(
+                    ColorCluster(
+                        boxes: [box],
+                        r: color.r,
+                        g: color.g,
+                        b: color.b,
+                        count: 1
+                    )
+                )
+            } else if let idx = bestIndex {
+                // At capacity; fall back to the nearest cluster regardless of distance.
+                self.mergeColor(into: &clusters[idx], box: box, color: color)
+            }
+        }
+        return clusters
+    }
+
+    /// Running-mean merge of a box's sampled color into its target cluster.
+    private func mergeColor(
+        into cluster: inout ColorCluster,
+        box: Box,
+        color: (r: CGFloat, g: CGFloat, b: CGFloat)
+    ) {
+        let n = CGFloat(cluster.count)
+        cluster.r = (cluster.r * n + color.r) / (n + 1)
+        cluster.g = (cluster.g * n + color.g) / (n + 1)
+        cluster.b = (cluster.b * n + color.b) / (n + 1)
+        cluster.count += 1
+        cluster.boxes.append(box)
+    }
+
+    /// Estimates the dominant ink color inside a text box by averaging the RGB of
+    /// pixels whose luminance falls within the darkest ~20% of the box. Uses a
+    /// 256-bucket histogram to pick the cutoff in a single pass so that text on
+    /// a light background yields near-ink color even when that ink isn't
+    /// strictly "dark" (e.g. orange headlines).
+    private func dominantInkColor(
+        in box: Box,
+        rgba: UnsafeMutablePointer<UInt8>,
+        width: Int
+    )
+        -> (r: CGFloat, g: CGFloat, b: CGFloat)?
+    {
+        let boxWidth = box.x1 - box.x0
+        let boxHeight = box.y1 - box.y0
+        let totalPixels = boxWidth * boxHeight
+        guard totalPixels > 0 else { return nil }
+
+        var hist = [Int](repeating: 0, count: 256)
+        for y in box.y0..<box.y1 {
+            let row = rgba + (y * width + box.x0) * 4
+            for i in 0..<boxWidth {
+                let r = Int(row[i * 4])
+                let g = Int(row[i * 4 + 1])
+                let b = Int(row[i * 4 + 2])
+                let lum = (r * 299 + g * 587 + b * 114) / 1000
+                hist[lum] += 1
+            }
+        }
+
+        let targetCount = max(1, totalPixels / 5)
+        var cumulative = 0
+        var cutoff = 0
+        for lum in 0..<256 {
+            cumulative += hist[lum]
+            if cumulative >= targetCount {
+                cutoff = lum
+                break
+            }
+        }
+
+        var rSum: UInt64 = 0
+        var gSum: UInt64 = 0
+        var bSum: UInt64 = 0
+        var count: UInt64 = 0
+        for y in box.y0..<box.y1 {
+            let row = rgba + (y * width + box.x0) * 4
+            for i in 0..<boxWidth {
+                let r = row[i * 4]
+                let g = row[i * 4 + 1]
+                let b = row[i * 4 + 2]
+                let lum = (Int(r) * 299 + Int(g) * 587 + Int(b) * 114) / 1000
+                if lum <= cutoff {
+                    rSum += UInt64(r)
+                    gSum += UInt64(g)
+                    bSum += UInt64(b)
+                    count += 1
+                }
+            }
+        }
+        guard count > 0 else { return nil }
+        return (
+            r: CGFloat(Double(rSum) / Double(count) / 255.0),
+            g: CGFloat(Double(gSum) / Double(count) / 255.0),
+            b: CGFloat(Double(bSum) / Double(count) / 255.0)
+        )
+    }
+
     // MARK: - Vision text detection
 
     /// Runs `VNRecognizeTextRequest` on the page and returns expanded pixel-space boxes
     /// (top-left origin). The boxes are padded slightly to avoid clipping stroke edges
     /// during binarization.
-    private func detectTextBoxes(in image: CGImage) -> [(x0: Int, y0: Int, x1: Int, y1: Int)] {
+    private func detectTextBoxes(in image: CGImage) -> [Box] {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.recognitionLanguages = ["de-DE", "en-US"]
@@ -491,7 +722,7 @@ final class PDFAssembler: @unchecked Sendable {
         let height = image.height
         let padding = 12
 
-        var boxes: [(x0: Int, y0: Int, x1: Int, y1: Int)] = []
+        var boxes: [Box] = []
         boxes.reserveCapacity(observations.count)
         for obs in observations {
             let b = obs.boundingBox
@@ -515,7 +746,7 @@ final class PDFAssembler: @unchecked Sendable {
     // MARK: - In-box mask
 
     private func buildInBoxMask(
-        boxes: [(x0: Int, y0: Int, x1: Int, y1: Int)],
+        boxes: [Box],
         width: Int,
         height: Int
     )

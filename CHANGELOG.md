@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `-v` short flag for `--verbose` (use `--verbose` instead)
 
 ### Fixed
+- **MRC PDF: non-black text is no longer rendered as black.** Previously the MRC text mask was always painted with a hardcoded black fill, so any colored text (e.g. an orange headline) was overlaid black on top of the blurry JPEG background. The text-mask pipeline now samples the dominant ink color per detected text region, clusters regions by color, emits one `/ImageMask` XObject per cluster, and draws each with its cluster's average fill color. Scanned black-text-only pages collapse to a single cluster and produce visually identical output to before.
 - Suppressed CoreGraphics PDF framework noise (`CoreGraphics PDF has logged an error`) from stderr during PDF creation
 
 ### Changed
