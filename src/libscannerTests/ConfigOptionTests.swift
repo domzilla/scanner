@@ -93,7 +93,7 @@ struct ConfigOptionTests {
 
     @Test
     func allCasesCount() {
-        #expect(ConfigOption.allCases.count == 16)
+        #expect(ConfigOption.allCases.count == 17)
     }
 
     @Test

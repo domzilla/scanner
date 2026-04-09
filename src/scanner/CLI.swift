@@ -178,6 +178,12 @@ enum CLI {
                         description: "Print version and exit"
                     ),
                 ]),
+                OptionGroupDTO(title: "Debug", parameters: [
+                    ParameterInfoDTO(
+                        name: "--debug-input", shortFlag: nil, type: "path", required: false,
+                        description: "Development/testing only. Skip the hardware scanner and feed the given image file or directory of images into the normal output pipeline (rotate, format, PDF assembly, MRC). A directory is expanded to its image files (jpg/jpeg/png/tif/tiff) sorted by filename. Inputs are copied to a temp dir first so --rotate won't mutate your originals."
+                    ),
+                ]),
             ],
             examples: [
                 ExampleDTO(command: "scanner", description: "Scan to PDF in current directory"),
@@ -192,6 +198,10 @@ enum CLI {
                 ExampleDTO(
                     command: "scanner --no-mrc",
                     description: "Scan to a plain image-per-page PDF (disable MRC)"
+                ),
+                ExampleDTO(
+                    command: "scanner --debug-input /tmp/pages",
+                    description: "Run the pipeline against existing images (skip scanner)"
                 ),
             ]
         )

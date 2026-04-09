@@ -27,11 +27,12 @@ public enum ConfigOption: String, CaseIterable, Sendable {
     case mrcResolution = "mrc-resolution"
     case jpegQuality = "jpeg-quality"
     case mrcJpegQuality = "mrc-jpeg-quality"
+    case debugInput = "debug-input"
 
     var type: ConfigOptionType {
         switch self {
         case .name, .scanner, .resolution, .rotate, .mrcResolution, .jpegQuality, .mrcJpegQuality,
-             .input, .format, .size, .color:
+             .input, .format, .size, .color, .debugInput:
             .string
         default:
             .flag
@@ -103,6 +104,8 @@ public enum ConfigOption: String, CaseIterable, Sendable {
             "JPEG quality (0-100) for the no-MRC PDF background (default: 60). Used when --no-mrc is set: because text is being JPEG-encoded directly, the quality floor has to stay relatively high to keep glyphs legible. Has no effect on --format jpeg, on MRC PDF output (see --mrc-jpeg-quality), or on rotated output."
         case .mrcJpegQuality:
             "JPEG quality (0-100) for the MRC background layer (default: 20). Because text is stored separately in a crisp 1-bit mask, the color background can be compressed very aggressively without harming legibility. Only affects MRC PDF output — the plain no-MRC PDF path uses --jpeg-quality instead."
+        case .debugInput:
+            "Development/testing only. Skip the hardware scanner entirely and use the given path as input for the normal output pipeline (rotate, format conversion, PDF assembly, MRC, etc.). If the path is a single image file, it is treated as a one-page input. If the path is a directory, every image file (jpg/jpeg/png/tif/tiff) in the directory is used, sorted lexicographically by filename. Input files are copied to a temp directory before processing, so --rotate does not mutate your originals. Useful for reproducing bugs from an existing scan without running the scanner again."
         }
     }
 

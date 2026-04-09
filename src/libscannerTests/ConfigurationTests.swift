@@ -208,6 +208,18 @@ struct ConfigurationTests {
     }
 
     @Test
+    func debugInputParsesPath() throws {
+        let config = try makeConfig(["--debug-input", "/tmp/pages/scan.jpg"])
+        #expect(config.string(.debugInput) == "/tmp/pages/scan.jpg")
+    }
+
+    @Test
+    func debugInputHasNoDefault() throws {
+        let config = try makeConfig([])
+        #expect(config.string(.debugInput) == nil)
+    }
+
+    @Test
     func defaultsOverriddenByCLI() throws {
         let config = try makeConfig(["--resolution", "600", "--rotate", "90"])
         #expect(config.string(.resolution) == "600")

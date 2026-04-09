@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - `-v` short flag for `--verbose` (use `--verbose` instead)
 
+### Added
+- `--debug-input <path>` flag under a new **Debug** option group. Skips the hardware scanner entirely and feeds the given path into the normal output pipeline (rotate, format conversion, PDF assembly, MRC). The path can be a single image file or a directory of images (jpg/jpeg/png/tif/tiff, sorted lexicographically by filename). Inputs are copied to a temp staging directory before processing, so `--rotate` does not mutate the originals. Intended for development and bug reproduction; the flag is fully documented in `scanner --help`, not hidden.
+
 ### Fixed
 - **MRC PDF: non-black text is no longer rendered as black.** Previously the MRC text mask was always painted with a hardcoded black fill, so any colored text (e.g. an orange headline) was overlaid black on top of the blurry JPEG background. The text-mask pipeline now samples the dominant ink color per detected text region, clusters regions by color, emits one `/ImageMask` XObject per cluster, and draws each with its cluster's average fill color. Scanned black-text-only pages collapse to a single cluster and produce visually identical output to before.
 - Suppressed CoreGraphics PDF framework noise (`CoreGraphics PDF has logged an error`) from stderr during PDF creation

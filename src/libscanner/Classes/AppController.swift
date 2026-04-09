@@ -19,7 +19,7 @@ enum ExitCode: Int32 {
 
 // MARK: - AppController
 
-public class AppController: NSObject {
+public class AppController: NSObject, @unchecked Sendable {
     let options: AppOptions
     let configuration: ScanConfiguration
     var scannerBrowserTimer: Timer?
@@ -39,6 +39,13 @@ public class AppController: NSObject {
     }
 
     public func go() {
+        // Debug input: bypass the hardware scanner entirely and feed the given path
+        // straight into the output pipeline. See --debug-input in ScanConfiguration.
+        if let path = self.configuration.string(.debugInput) {
+            self.runDebugInput(path: path)
+            return
+        }
+
         self.scannerBrowser.browse()
 
         self.scannerBrowserTimer = Timer
@@ -67,6 +74,108 @@ public class AppController: NSObject {
 
     private func log(_ message: String) {
         print(message)
+    }
+
+    // MARK: - Debug Input
+
+    /// Runs the output pipeline against a user-supplied path instead of scanning.
+    /// Validates the path, expands directory inputs, copies files to a temp location
+    /// so that `--rotate` does not mutate the originals, and then hands the staged
+    /// URLs to `OutputProcessor` exactly like a real scan would.
+    private func runDebugInput(path: String) {
+        guard self.options.mode == .scan else {
+            self.log("--debug-input cannot be used with 'scanner list'")
+            self.exit(with: .failure)
+            return
+        }
+
+        let resolved: [URL]
+        switch Self.resolveDebugInput(path: path) {
+        case let .success(urls):
+            resolved = urls
+        case let .failure(message):
+            self.log("--debug-input: \(message)")
+            self.exit(with: .failure)
+            return
+        }
+        Logger.verbose("debug-input: resolved \(resolved.count) page(s) from \(path)")
+
+        let staged: [URL]
+        do {
+            staged = try Self.stageDebugInput(resolved)
+        } catch {
+            self.log("--debug-input: failed to stage inputs: \(error.localizedDescription)")
+            self.exit(with: .failure)
+            return
+        }
+
+        let outputProcessor = OutputProcessor(urls: staged, configuration: self.configuration)
+        Task {
+            let succeeded = await outputProcessor.process()
+            self.exit(with: succeeded ? .success : .failure)
+        }
+    }
+
+    /// Result of resolving a `--debug-input` path into a list of input URLs.
+    enum DebugInputResolution: Equatable {
+        case success([URL])
+        case failure(String)
+    }
+
+    /// Supported image extensions for directory-mode `--debug-input`.
+    static let debugInputAllowedExtensions: Set<String> = ["jpg", "jpeg", "png", "tif", "tiff"]
+
+    /// Expands a `--debug-input` path into the concrete list of image URLs to feed
+    /// into the pipeline. File paths become single-element lists; directories become
+    /// the lexicographically-sorted list of image files contained directly within
+    /// them. Non-existent paths and empty directories return failure messages that
+    /// are suitable for user-facing logging.
+    static func resolveDebugInput(path: String) -> DebugInputResolution {
+        let fileManager = FileManager.default
+        let expanded = (path as NSString).expandingTildeInPath
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: expanded, isDirectory: &isDirectory) else {
+            return .failure("path does not exist: \(expanded)")
+        }
+
+        if isDirectory.boolValue {
+            guard let contents = try? fileManager.contentsOfDirectory(atPath: expanded) else {
+                return .failure("cannot read directory: \(expanded)")
+            }
+            let urls = contents
+                .filter { self.debugInputAllowedExtensions.contains(($0 as NSString).pathExtension.lowercased()) }
+                .sorted()
+                .map { URL(fileURLWithPath: "\(expanded)/\($0)") }
+            if urls.isEmpty {
+                return .failure("no image files found in \(expanded)")
+            }
+            return .success(urls)
+        }
+        return .success([URL(fileURLWithPath: expanded)])
+    }
+
+    /// Copies the given input URLs into a fresh temp directory so that downstream
+    /// steps (notably `--rotate`, which writes back to the input file path) can
+    /// operate without mutating the user's originals. Staged files are renamed to
+    /// `page-NNN.<ext>` so the lexicographic ordering from `resolveDebugInput` is
+    /// preserved across the staging copy.
+    static func stageDebugInput(_ urls: [URL]) throws -> [URL] {
+        let fileManager = FileManager.default
+        let stagingDir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("scanner-debug-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: stagingDir, withIntermediateDirectories: true)
+
+        var staged: [URL] = []
+        staged.reserveCapacity(urls.count)
+        for (index, source) in urls.enumerated() {
+            let ext = source.pathExtension.isEmpty ? "jpg" : source.pathExtension
+            let destination = stagingDir.appendingPathComponent(
+                String(format: "page-%03d.%@", index + 1, ext)
+            )
+            try fileManager.copyItem(at: source, to: destination)
+            staged.append(destination)
+        }
+        return staged
     }
 }
 

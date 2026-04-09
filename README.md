@@ -88,6 +88,18 @@ scanner list
 | `--verbose` | Enable verbose logging |
 | `--version` | Print version and exit |
 
+#### Debug
+| Flag | Description |
+|---|---|
+| `--debug-input <path>` | Development/testing only. Skip the hardware scanner and feed the given image file (or directory of images) into the normal output pipeline. See below. |
+
+`--debug-input` is intended for reproducing bugs against an existing scan or iterating on output changes without running the scanner every time. It runs the exact same pipeline used for real scans — rotation, format conversion, PDF assembly, MRC — so the resulting file is byte-identical to what you'd get from a live scan of the same image.
+
+- **Single file:** `scanner --debug-input page.jpg` — treats the file as a one-page input.
+- **Directory:** `scanner --debug-input /tmp/pages` — uses every image file (jpg/jpeg/png/tif/tiff) in the directory, sorted lexicographically by filename, as pages of a single multi-page output.
+- Inputs are copied to a temp staging directory before processing, so `--rotate` will not mutate your originals.
+- Combine with any other output flag: `scanner --debug-input /tmp/pages --no-mrc --name repro` writes `repro.pdf` in the current directory using the no-MRC pipeline.
+
 ### Config File
 
 Default options can be set in `~/.config/scanner/scanner.conf`, one flag per line:
