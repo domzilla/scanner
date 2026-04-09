@@ -29,6 +29,7 @@ struct ConfigOptionTests {
         #expect(ConfigOption.from(key: "rotate") == .rotate)
         #expect(ConfigOption.from(key: "no-mrc") == .noMRC)
         #expect(ConfigOption.from(key: "mrc-resolution") == .mrcResolution)
+        #expect(ConfigOption.from(key: "jpeg-quality") == .jpegQuality)
     }
 
     @Test
@@ -57,7 +58,7 @@ struct ConfigOptionTests {
     func typePropertyForStrings() {
         let stringOptions: [ConfigOption] = [
             .input, .format, .size, .color,
-            .name, .scanner, .resolution, .rotate, .mrcResolution,
+            .name, .scanner, .resolution, .rotate, .mrcResolution, .jpegQuality,
         ]
         for option in stringOptions {
             #expect(option.type == .string, "Expected \(option) to be .string")
@@ -74,6 +75,7 @@ struct ConfigOptionTests {
 
         #expect(ConfigOption.rotate.defaultValue == "0")
         #expect(ConfigOption.mrcResolution.defaultValue == "400")
+        #expect(ConfigOption.jpegQuality.defaultValue == "70")
     }
 
     @Test
@@ -89,7 +91,7 @@ struct ConfigOptionTests {
 
     @Test
     func allCasesCount() {
-        #expect(ConfigOption.allCases.count == 14)
+        #expect(ConfigOption.allCases.count == 15)
     }
 
     @Test
@@ -112,6 +114,7 @@ struct ConfigOptionTests {
         #expect(ConfigOption.rotate.shortFlag == nil)
         #expect(ConfigOption.noMRC.shortFlag == nil)
         #expect(ConfigOption.mrcResolution.shortFlag == nil)
+        #expect(ConfigOption.jpegQuality.shortFlag == nil)
     }
 
     @Test
@@ -160,5 +163,6 @@ struct ConfigOptionTests {
         #expect(ConfigOption.resolution.validValues == nil)
         #expect(ConfigOption.rotate.validValues == nil)
         #expect(ConfigOption.mrcResolution.validValues == nil)
+        #expect(ConfigOption.jpegQuality.validValues == nil)
     }
 }

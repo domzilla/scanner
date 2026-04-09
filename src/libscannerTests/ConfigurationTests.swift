@@ -115,6 +115,26 @@ struct ConfigurationTests {
         #expect(config.string(.mrcResolution) == "500")
     }
 
+    @Test
+    func defaultJPEGQuality() throws {
+        let config = try makeConfig([])
+        #expect(config.string(.jpegQuality) == "70")
+    }
+
+    @Test
+    func jpegQualityOverride() throws {
+        let config = try makeConfig(["--jpeg-quality", "85"])
+        #expect(config.string(.jpegQuality) == "85")
+    }
+
+    @Test
+    func jpegQualityAcceptsNonNumericStringForLaterHandling() throws {
+        // The parser doesn't validate numeric values (matches --resolution behavior);
+        // MRCAssembler is responsible for clamping / falling back at use time.
+        let config = try makeConfig(["--jpeg-quality", "garbage"])
+        #expect(config.string(.jpegQuality) == "garbage")
+    }
+
     // MARK: - isMRCEnabled helper
 
     @Test

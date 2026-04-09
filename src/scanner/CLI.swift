@@ -123,6 +123,10 @@ enum CLI {
                         name: "--mrc-resolution", shortFlag: nil, type: "dpi", required: false,
                         description: "Text-layer resolution in dpi for MRC PDF output (default: 400)"
                     ),
+                    ParameterInfoDTO(
+                        name: "--jpeg-quality", shortFlag: nil, type: "0-100", required: false,
+                        description: "JPEG quality for the MRC background layer (default: 70, higher = better quality, larger file)"
+                    ),
                 ]),
                 OptionGroupDTO(title: "Page Size", parameters: [
                     ParameterInfoDTO(

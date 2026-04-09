@@ -284,10 +284,14 @@ final class MRCAssembler: @unchecked Sendable {
         return CGFloat(Int(raw) ?? 150)
     }
 
-    /// JPEG quality for the background layer. Fixed default; exposed as a constant so
-    /// it's easy to make configurable later if needed.
+    /// JPEG quality for the background layer. The raw `--jpeg-quality` value is
+    /// an integer percentage (0–100) that we map linearly to Core Graphics's 0.0–1.0
+    /// range. Non-numeric or out-of-range values fall back to the default of 70.
     private var configuredBackgroundQuality: CGFloat {
-        0.5
+        let raw = self.configuration.string(.jpegQuality) ?? "70"
+        let parsed = Int(raw) ?? 70
+        let clamped = max(0, min(100, parsed))
+        return CGFloat(clamped) / 100.0
     }
 
     // MARK: - Color downsample
