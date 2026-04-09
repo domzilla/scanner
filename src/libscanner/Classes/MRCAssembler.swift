@@ -128,24 +128,28 @@ final class MRCAssembler: @unchecked Sendable {
     /// Loads the scan, writes the background JPEG, text mask, and content stream as
     /// indirect objects in the PDF writer, and returns the collected references.
     private func writePageContent(from url: URL, to pdf: PDFWriter) -> PageRecord? {
-        guard let color = self.loadImage(at: url) else {
+        guard let source = self.loadImage(at: url) else {
             return nil
         }
 
-        let sourceDPI = self.readDPI(of: url) ?? self.configuredMRCResolution
+        let nativeDPI = self.readDPI(of: url) ?? self.configuredMRCResolution
+        let textLayerDPI = self.configuredMRCResolution
         let backgroundDPI = self.configuredBackgroundResolution
         let backgroundQuality = self.configuredBackgroundQuality
 
-        let widthPoints = CGFloat(color.width) * 72.0 / sourceDPI
-        let heightPoints = CGFloat(color.height) * 72.0 / sourceDPI
+        // Media box is derived from the native scan's physical dimensions and is
+        // independent of any downsample we do downstream — the PDF just needs to
+        // know the page's physical size.
+        let widthPoints = CGFloat(source.width) * 72.0 / nativeDPI
+        let heightPoints = CGFloat(source.height) * 72.0 / nativeDPI
         let mediaBox = CGRect(x: 0, y: 0, width: widthPoints, height: heightPoints)
 
-        // Background XObject.
+        // Background XObject: downsample native source to --resolution.
         guard
             let background = self.backgroundJPEGBytes(
-                color,
+                source,
                 targetDPI: backgroundDPI,
-                sourceDPI: sourceDPI,
+                sourceDPI: nativeDPI,
                 quality: backgroundQuality
             ) else
         {
@@ -168,8 +172,27 @@ final class MRCAssembler: @unchecked Sendable {
         let bgRef = pdf.writeStreamObject(dict: bgDict, stream: background.data)
 
         // Text mask XObject (optional — some pages may have no detectable text).
+        // Downsample the color source to --mrc-resolution before binarization when
+        // the scanner delivered a higher DPI than requested, so the user always gets
+        // exactly the text-layer resolution they asked for. Downsampling happens on
+        // the color (8-bit) image rather than on the finished 1-bit mask, so text
+        // stroke edges stay clean.
+        let maskColorSource: CGImage
+        if
+            nativeDPI > textLayerDPI,
+            let downsampled = self.downsampleColorImage(source, fromDPI: nativeDPI, toDPI: textLayerDPI)
+        {
+            maskColorSource = downsampled
+            Logger.verbose(
+                "MRC: scanner delivered \(Int(nativeDPI)) DPI; downsampling to \(Int(textLayerDPI)) DPI for text layer"
+            )
+        } else {
+            maskColorSource = source
+            Logger.verbose("MRC: using \(Int(nativeDPI)) DPI native scan for text layer")
+        }
+
         var maskRef: Int?
-        if let mask = self.textMaskCCITTBytes(for: color) {
+        if let mask = self.textMaskCCITTBytes(for: maskColorSource) {
             let maskDict = """
             <<
               /Type /XObject
@@ -267,22 +290,17 @@ final class MRCAssembler: @unchecked Sendable {
         0.5
     }
 
-    // MARK: - Background JPEG
+    // MARK: - Color downsample
 
-    /// Downsamples the color page to the target background DPI and JPEG-encodes it.
-    /// Returns the raw JPEG bytes along with the encoded pixel dimensions, suitable for
-    /// direct embedding as a PDF `/DCTDecode` stream.
-    private func backgroundJPEGBytes(
-        _ image: CGImage,
-        targetDPI: CGFloat,
-        sourceDPI: CGFloat,
-        quality: CGFloat
-    )
-        -> (data: Data, width: Int, height: Int)?
-    {
-        // Never upsample: if the background DPI is higher than the source, just re-encode
-        // at the source resolution.
-        let scale = min(1.0, targetDPI / sourceDPI)
+    /// Downsamples a color CGImage from its source DPI to a target DPI using a high-quality
+    /// bitmap context. Never upsamples: if `toDPI >= fromDPI` the source is returned unchanged.
+    /// This is the shared resizing primitive used by both the background JPEG encoder and the
+    /// text-mask pipeline, so that both paths get identical resampling behavior.
+    private func downsampleColorImage(_ image: CGImage, fromDPI: CGFloat, toDPI: CGFloat) -> CGImage? {
+        if toDPI >= fromDPI {
+            return image
+        }
+        let scale = toDPI / fromDPI
         let newWidth = max(1, Int((CGFloat(image.width) * scale).rounded()))
         let newHeight = max(1, Int((CGFloat(image.height) * scale).rounded()))
 
@@ -302,7 +320,25 @@ final class MRCAssembler: @unchecked Sendable {
         }
         ctx.interpolationQuality = .high
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: newWidth, height: newHeight))
-        guard let downsampled = ctx.makeImage() else { return nil }
+        return ctx.makeImage()
+    }
+
+    // MARK: - Background JPEG
+
+    /// Downsamples the color page to the target background DPI and JPEG-encodes it.
+    /// Returns the raw JPEG bytes along with the encoded pixel dimensions, suitable for
+    /// direct embedding as a PDF `/DCTDecode` stream.
+    private func backgroundJPEGBytes(
+        _ image: CGImage,
+        targetDPI: CGFloat,
+        sourceDPI: CGFloat,
+        quality: CGFloat
+    )
+        -> (data: Data, width: Int, height: Int)?
+    {
+        guard let downsampled = self.downsampleColorImage(image, fromDPI: sourceDPI, toDPI: targetDPI) else {
+            return nil
+        }
 
         let data = NSMutableData()
         guard
@@ -318,7 +354,7 @@ final class MRCAssembler: @unchecked Sendable {
             return nil
         }
 
-        return (data: data as Data, width: newWidth, height: newHeight)
+        return (data: data as Data, width: downsampled.width, height: downsampled.height)
     }
 
     // MARK: - Text mask pipeline

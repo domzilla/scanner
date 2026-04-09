@@ -94,7 +94,7 @@ public enum ConfigOption: String, CaseIterable, Sendable {
         case .mrc:
             "Produce a Mixed Raster Content PDF: crisp 1-bit text layer over a compressed color background. PDF format only."
         case .mrcResolution:
-            "Minimum text-layer resolution in dpi when --mrc is set (default: 400). The scanner will be driven at this resolution; the background uses --resolution."
+            "Text-layer resolution in dpi when --mrc is set (default: 400). The scanner is driven at this resolution (rounded up to the nearest supported value). If the scanner delivers higher, the color source is downsampled to this resolution before binarization, so the output mask is always at the requested DPI. The background uses --resolution."
         }
     }
 

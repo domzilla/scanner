@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - MRC PDF assembly now uses a hand-written PDF writer instead of `CGPDFContext`, and compresses the 1-bit text mask with CCITT Group 4 (`/CCITTFaxDecode`) instead of Flate. Background JPEGs are embedded directly as `/DCTDecode` streams. For a representative two-page German bank statement this reduces the MRC PDF size by ~35% (923 KB → 602 KB) with no change in visual quality, and brings the per-mask storage down from ~250 KB to ~100 KB.
+- `--mrc-resolution` is now an exact target, not a minimum. When the scanner delivers a higher native DPI than requested (e.g. asking for 400 DPI on a scanner that only supports 600), the color source is downsampled to the requested resolution before binarization, so the output mask is always at exactly `--mrc-resolution`. This matches user intent ("I asked for 400, I get 400"), gives consistent output across scanners with different supported-resolution sets, and shrinks the per-mask storage by another ~43 % (e.g. 100 KB → 55 KB per page) at visually indistinguishable quality.
 - Print output file path after successful scan (e.g. `Saved to /path/to/scan.pdf`)
 - `--version` flag to print version and exit
 - Homebrew publish flow: GitHub Actions workflow builds bottles (arm64 + x86_64), creates GitHub releases, and auto-updates `domzilla/homebrew-tap` formula

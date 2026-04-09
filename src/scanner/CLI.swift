@@ -121,7 +121,7 @@ enum CLI {
                     ),
                     ParameterInfoDTO(
                         name: "--mrc-resolution", shortFlag: nil, type: "dpi", required: false,
-                        description: "Minimum text-layer resolution in dpi when --mrc is set (default: 400)"
+                        description: "Text-layer resolution in dpi when --mrc is set (default: 400)"
                     ),
                 ]),
                 OptionGroupDTO(title: "Page Size", parameters: [
