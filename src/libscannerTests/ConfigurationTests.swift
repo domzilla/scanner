@@ -84,6 +84,38 @@ struct ConfigurationTests {
     }
 
     @Test
+    func defaultMRCResolution() throws {
+        let config = try makeConfig([])
+        #expect(config.string(.mrcResolution) == "400")
+    }
+
+    @Test
+    func defaultMRCFlagIsFalse() throws {
+        let config = try makeConfig([])
+        #expect(config.flag(.mrc) == false)
+    }
+
+    @Test
+    func mrcFlagSet() throws {
+        let config = try makeConfig(["--mrc"])
+        #expect(config.flag(.mrc) == true)
+    }
+
+    @Test
+    func mrcResolutionOverride() throws {
+        let config = try makeConfig(["--mrc-resolution", "600"])
+        #expect(config.string(.mrcResolution) == "600")
+    }
+
+    @Test
+    func mrcWithCustomBackgroundResolution() throws {
+        let config = try makeConfig(["--mrc", "--resolution", "200", "--mrc-resolution", "500"])
+        #expect(config.flag(.mrc) == true)
+        #expect(config.string(.resolution) == "200")
+        #expect(config.string(.mrcResolution) == "500")
+    }
+
+    @Test
     func noDefaultForNameAndScanner() throws {
         let config = try makeConfig([])
         #expect(config.string(.name) == nil)

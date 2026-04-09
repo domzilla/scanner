@@ -27,6 +27,8 @@ struct ConfigOptionTests {
         #expect(ConfigOption.from(key: "exactname") == .exactName)
 
         #expect(ConfigOption.from(key: "rotate") == .rotate)
+        #expect(ConfigOption.from(key: "mrc") == .mrc)
+        #expect(ConfigOption.from(key: "mrc-resolution") == .mrcResolution)
     }
 
     @Test
@@ -44,7 +46,7 @@ struct ConfigOptionTests {
     @Test
     func typePropertyForFlags() {
         let flagOptions: [ConfigOption] = [
-            .duplex, .batch, .verbose, .exactName,
+            .duplex, .batch, .verbose, .exactName, .mrc,
         ]
         for option in flagOptions {
             #expect(option.type == .flag, "Expected \(option) to be .flag")
@@ -55,7 +57,7 @@ struct ConfigOptionTests {
     func typePropertyForStrings() {
         let stringOptions: [ConfigOption] = [
             .input, .format, .size, .color,
-            .name, .scanner, .resolution, .rotate,
+            .name, .scanner, .resolution, .rotate, .mrcResolution,
         ]
         for option in stringOptions {
             #expect(option.type == .string, "Expected \(option) to be .string")
@@ -71,12 +73,13 @@ struct ConfigOptionTests {
         #expect(ConfigOption.resolution.defaultValue == "150")
 
         #expect(ConfigOption.rotate.defaultValue == "0")
+        #expect(ConfigOption.mrcResolution.defaultValue == "400")
     }
 
     @Test
     func noDefaultValueForFlagsAndFreeformStrings() {
         let noDefaultOptions: [ConfigOption] = [
-            .duplex, .batch, .verbose, .exactName,
+            .duplex, .batch, .verbose, .exactName, .mrc,
             .name, .scanner,
         ]
         for option in noDefaultOptions {
@@ -86,7 +89,7 @@ struct ConfigOptionTests {
 
     @Test
     func allCasesCount() {
-        #expect(ConfigOption.allCases.count == 12)
+        #expect(ConfigOption.allCases.count == 14)
     }
 
     @Test
@@ -107,6 +110,8 @@ struct ConfigOptionTests {
         #expect(ConfigOption.verbose.shortFlag == nil)
         #expect(ConfigOption.scanner.shortFlag == nil)
         #expect(ConfigOption.rotate.shortFlag == nil)
+        #expect(ConfigOption.mrc.shortFlag == nil)
+        #expect(ConfigOption.mrcResolution.shortFlag == nil)
     }
 
     @Test
@@ -154,5 +159,6 @@ struct ConfigOptionTests {
         #expect(ConfigOption.scanner.validValues == nil)
         #expect(ConfigOption.resolution.validValues == nil)
         #expect(ConfigOption.rotate.validValues == nil)
+        #expect(ConfigOption.mrcResolution.validValues == nil)
     }
 }

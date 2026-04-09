@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `--mrc` flag for Mixed Raster Content PDF output: text is detected with Vision's `VNRecognizeTextRequest`, binarized inside the text regions with Sauvola adaptive thresholding, and composed as a 1-bit image mask on top of a downsampled JPEG color background. Produces crisp text independent of the background JPEG's compression while preserving photos, logos, and color content in the background layer.
+- `--mrc-resolution <dpi>` option to set the text-layer scan resolution when `--mrc` is active (default: 400). The scanner is driven at `max(--mrc-resolution, --resolution)` so the mask is built from a native high-resolution scan; the background is downsampled to `--resolution`.
+- `MRCAssembler` class in `libscanner` implementing the full MRC pipeline (grayscale render, Vision text detection, integral-image Sauvola binarization, 1-bit mask packing, `CGPDFContext` composition).
 - Print output file path after successful scan (e.g. `Saved to /path/to/scan.pdf`)
 - `--version` flag to print version and exit
 - Homebrew publish flow: GitHub Actions workflow builds bottles (arm64 + x86_64), creates GitHub releases, and auto-updates `domzilla/homebrew-tap` formula

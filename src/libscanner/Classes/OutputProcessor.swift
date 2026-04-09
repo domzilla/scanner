@@ -56,6 +56,11 @@ class OutputProcessor: @unchecked Sendable {
     func combine(urls: [URL]) -> URL? {
         // Suppress CoreGraphics framework noise written to stderr during PDF operations
         self.suppressingStderr {
+            if self.configuration.flag(.mrc) {
+                let assembler = MRCAssembler(configuration: self.configuration)
+                return assembler.assemble(urls: urls)
+            }
+
             let document = PDFDocument()
 
             for url in urls {

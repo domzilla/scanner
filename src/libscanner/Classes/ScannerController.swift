@@ -188,7 +188,17 @@ class ScannerController: NSObject, @unchecked Sendable, ICScannerDeviceDelegate 
             self.configureFlatbed()
         }
 
-        let desiredResolution = Int(self.configuration.string(.resolution) ?? "150") ?? 150
+        // In MRC mode the text mask must be built from a native high-resolution scan,
+        // so drive the scanner at max(mrc-resolution, resolution). The background layer
+        // still uses --resolution, downsampled post-scan.
+        let backgroundResolution = Int(self.configuration.string(.resolution) ?? "150") ?? 150
+        let desiredResolution: Int
+        if self.configuration.flag(.mrc) {
+            let mrcResolution = Int(self.configuration.string(.mrcResolution) ?? "400") ?? 400
+            desiredResolution = max(mrcResolution, backgroundResolution)
+        } else {
+            desiredResolution = backgroundResolution
+        }
         if let resolutionIndex = functionalUnit.supportedResolutions.integerGreaterThanOrEqualTo(desiredResolution) {
             functionalUnit.resolution = resolutionIndex
         }

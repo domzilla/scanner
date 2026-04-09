@@ -337,4 +337,74 @@ struct OutputProcessorTests {
         #expect(result == true)
         #expect(FileManager.default.fileExists(atPath: "\(outputDir)/process_tif.tif"))
     }
+
+    // MARK: - MRC
+
+    @Test
+    func mrcCombineCreatesValidPDF() throws {
+        let url1 = createTempJPEGFile()
+        let url2 = createTempJPEGFile()
+        let config = try makeConfig(["--mrc"])
+        let processor = OutputProcessor(urls: [url1, url2], configuration: config)
+
+        let result = processor.combine(urls: [url1, url2])
+
+        #expect(result != nil)
+        if let result {
+            #expect(FileManager.default.fileExists(atPath: result.path))
+            let pdf = PDFDocument(url: result)
+            #expect(pdf?.pageCount == 2)
+        }
+    }
+
+    @Test
+    func mrcSinglePageProducesOnePagePDF() throws {
+        let url = createTempJPEGFile()
+        let config = try makeConfig(["--mrc"])
+        let processor = OutputProcessor(urls: [url], configuration: config)
+
+        let result = processor.combine(urls: [url])
+
+        #expect(result != nil)
+        if let result {
+            let pdf = PDFDocument(url: result)
+            #expect(pdf?.pageCount == 1)
+        }
+    }
+
+    @Test
+    func processWithMRCFlag() async throws {
+        let url = createTempJPEGFile()
+        let outputDir = makeTempOutputDir()
+        let config = try makeConfig(["--mrc", "--name", "mrc_page"])
+        let processor = OutputProcessor(urls: [url], configuration: config)
+
+        let savedCwd = FileManager.default.currentDirectoryPath
+        defer { FileManager.default.changeCurrentDirectoryPath(savedCwd) }
+        FileManager.default.changeCurrentDirectoryPath(outputDir)
+
+        let result = await processor.process()
+
+        #expect(result == true)
+        #expect(FileManager.default.fileExists(atPath: "\(outputDir)/mrc_page.pdf"))
+    }
+
+    @Test
+    func mrcFlagIgnoredForNonPDFFormat() async throws {
+        // --mrc is only meaningful when format is pdf. For jpeg/tiff/png the flag should
+        // be silently ignored and the non-MRC output path used.
+        let url = createTempJPEGFile()
+        let outputDir = makeTempOutputDir()
+        let config = try makeConfig(["--mrc", "--format", "jpeg", "--name", "mrc_jpeg"])
+        let processor = OutputProcessor(urls: [url], configuration: config)
+
+        let savedCwd = FileManager.default.currentDirectoryPath
+        defer { FileManager.default.changeCurrentDirectoryPath(savedCwd) }
+        FileManager.default.changeCurrentDirectoryPath(outputDir)
+
+        let result = await processor.process()
+
+        #expect(result == true)
+        #expect(FileManager.default.fileExists(atPath: "\(outputDir)/mrc_jpeg.jpg"))
+    }
 }

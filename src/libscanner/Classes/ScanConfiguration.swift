@@ -23,10 +23,12 @@ public enum ConfigOption: String, CaseIterable, Sendable {
     case resolution
     case exactName = "exactname"
     case rotate
+    case mrc
+    case mrcResolution = "mrc-resolution"
 
     var type: ConfigOptionType {
         switch self {
-        case .name, .scanner, .resolution, .rotate,
+        case .name, .scanner, .resolution, .rotate, .mrcResolution,
              .input, .format, .size, .color:
             .string
         default:
@@ -42,6 +44,7 @@ public enum ConfigOption: String, CaseIterable, Sendable {
         case .color: "color"
         case .resolution: "150"
         case .rotate: "0"
+        case .mrcResolution: "400"
         default: nil
         }
     }
@@ -88,6 +91,10 @@ public enum ConfigOption: String, CaseIterable, Sendable {
             "When specified, only the scanner with the exact name specified will be used (no fuzzy matching)"
         case .rotate:
             "Specify degrees to rotate the scanned images"
+        case .mrc:
+            "Produce a Mixed Raster Content PDF: crisp 1-bit text layer over a compressed color background. PDF format only."
+        case .mrcResolution:
+            "Minimum text-layer resolution in dpi when --mrc is set (default: 400). The scanner will be driven at this resolution; the background uses --resolution."
         }
     }
 
@@ -116,14 +123,14 @@ public enum ConfigOption: String, CaseIterable, Sendable {
     }
 }
 
-enum ConfigOptionType: Sendable {
+enum ConfigOptionType {
     case flag
     case string
 }
 
 // MARK: - ConfigValue
 
-enum ConfigValue: Sendable {
+enum ConfigValue {
     case flag(Bool)
     case string(String)
 }
