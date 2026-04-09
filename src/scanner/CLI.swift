@@ -125,7 +125,7 @@ enum CLI {
                     ),
                     ParameterInfoDTO(
                         name: "--jpeg-quality", shortFlag: nil, type: "0-100", required: false,
-                        description: "JPEG quality for the MRC background layer (default: 70, higher = better quality, larger file)"
+                        description: "JPEG quality for the MRC background layer (default: 50, higher = better quality, larger file)"
                     ),
                 ]),
                 OptionGroupDTO(title: "Page Size", parameters: [

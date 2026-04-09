@@ -75,7 +75,7 @@ struct ConfigOptionTests {
 
         #expect(ConfigOption.rotate.defaultValue == "0")
         #expect(ConfigOption.mrcResolution.defaultValue == "400")
-        #expect(ConfigOption.jpegQuality.defaultValue == "70")
+        #expect(ConfigOption.jpegQuality.defaultValue == "50")
     }
 
     @Test

@@ -46,7 +46,7 @@ public enum ConfigOption: String, CaseIterable, Sendable {
         case .resolution: "150"
         case .rotate: "0"
         case .mrcResolution: "400"
-        case .jpegQuality: "70"
+        case .jpegQuality: "50"
         default: nil
         }
     }
@@ -98,7 +98,7 @@ public enum ConfigOption: String, CaseIterable, Sendable {
         case .mrcResolution:
             "Text-layer resolution in dpi for MRC PDF output (default: 400). The scanner is driven at this resolution (rounded up to the nearest supported value). If the scanner delivers higher, the color source is downsampled to this resolution before binarization, so the output mask is always at the requested DPI. The background uses --resolution."
         case .jpegQuality:
-            "JPEG quality (0-100) for the MRC background layer (default: 70). Higher values produce better background quality at the cost of larger files. Only affects MRC PDF output — has no effect on --format jpeg or on rotated output."
+            "JPEG quality (0-100) for the MRC background layer (default: 50). Higher values produce better background quality at the cost of larger files. Only affects MRC PDF output — has no effect on --format jpeg or on rotated output."
         }
     }
 

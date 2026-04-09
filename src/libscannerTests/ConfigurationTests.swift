@@ -118,7 +118,7 @@ struct ConfigurationTests {
     @Test
     func defaultJPEGQuality() throws {
         let config = try makeConfig([])
-        #expect(config.string(.jpegQuality) == "70")
+        #expect(config.string(.jpegQuality) == "50")
     }
 
     @Test
