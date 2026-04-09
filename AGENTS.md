@@ -92,6 +92,13 @@ xcodebuild -target "libscannerTests" -configuration Debug -destination "platform
 xcrun xctest /tmp/scanner-build/Debug/libscannerTests.xctest
 ```
 
+## Debug Input (for iteration without a scanner)
+Use `scanner --debug-input <path>` to drive the full output pipeline against existing images — preferred over hand-rolled `@testable import libscanner` drivers. Fixtures live in `test-images/` (gitignored); see `test-images/README.md` for layout and `scanner --help` → **Debug** for the full flag reference.
+
+```bash
+/tmp/scanner-build/Debug/scanner --debug-input test-images/600dpi --name repro --verbose
+```
+
 ## Code Formatting (MANDATORY)
 **Always run SwiftFormat after a successful build:**
 ```bash

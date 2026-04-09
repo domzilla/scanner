@@ -1,0 +1,3 @@
+# Local test images for --debug-input. See test-images/README.md.
+test-images/*
+!test-images/README.md
