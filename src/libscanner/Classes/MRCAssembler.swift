@@ -6,6 +6,7 @@
 //  Copyright © 2026 Dominic Rodemer. All rights reserved.
 //
 
+import AppKit
 import CoreGraphics
 import Foundation
 import ImageIO
@@ -16,13 +17,17 @@ import Vision
 
 /// Builds a Mixed Raster Content (MRC) PDF from scanned page images.
 ///
-/// For each page the assembler produces two layers composed on a CGPDFContext page:
+/// For each page the assembler produces two layers composed on a hand-written PDF page:
 /// 1. A low-resolution JPEG color background (the full page at the configured `--resolution`).
 /// 2. A high-resolution 1-bit text foreground. Text regions are detected with Vision's
 ///    `VNRecognizeTextRequest` and binarized inside those regions with Sauvola adaptive
-///    thresholding. The resulting mask is embedded as a `/ImageMask` XObject and drawn
-///    with a black fill color, producing crisp text independent of the background's
-///    JPEG compression.
+///    thresholding. The resulting mask is CCITT Group 4 encoded (via `NSBitmapImageRep`)
+///    and embedded as a PDF `/ImageMask` XObject drawn with a black fill color, producing
+///    crisp text independent of the background's JPEG compression.
+///
+/// CCITT Group 4 compression on the 1-bit text layer is roughly 2x smaller than the
+/// Flate (zlib) compression that `CGPDFContext` uses by default, which is why this type
+/// writes the PDF structure by hand instead of going through `CGPDFContext`.
 ///
 /// This preserves photos, logos, and other non-text content in the JPEG background layer
 /// untouched, while keeping text sharp at the native scan resolution.
@@ -40,39 +45,91 @@ final class MRCAssembler: @unchecked Sendable {
     func assemble(urls: [URL]) -> URL? {
         guard !urls.isEmpty else { return nil }
 
-        let outputPath = "\(NSTemporaryDirectory())/scan.pdf"
-        let outputURL = URL(fileURLWithPath: outputPath)
-
-        guard let consumer = CGDataConsumer(url: outputURL as CFURL) else {
-            Logger.debug("Failed to create CGDataConsumer for \(outputPath)")
-            return nil
-        }
-
-        // Placeholder media box — each page overrides this via beginPDFPage pageInfo.
-        var placeholder = CGRect(x: 0, y: 0, width: 595, height: 842)
-        guard let pdfContext = CGContext(consumer: consumer, mediaBox: &placeholder, nil) else {
-            Logger.debug("Failed to create CGPDFContext")
-            return nil
-        }
+        let pdf = PDFWriter()
+        var pageRecords: [PageRecord] = []
 
         for (index, url) in urls.enumerated() {
             Logger.verbose("MRC: assembling page \(index + 1) / \(urls.count) from \(url.lastPathComponent)")
-            if !self.addPage(from: url, to: pdfContext) {
+            guard let record = self.writePageContent(from: url, to: pdf) else {
                 Logger.debug("MRC: failed to add page for \(url.lastPathComponent)")
-                pdfContext.closePDF()
                 return nil
             }
+            pageRecords.append(record)
         }
 
-        pdfContext.closePDF()
+        // After every page's Bg/Mask/Contents XObjects are written, we write the Page
+        // objects with forward references to the Pages parent (whose object number we
+        // compute as nextObjectNumber + pages.count).
+        let pagesRef = pdf.nextObjectNumber + pageRecords.count
+        var pageObjectRefs: [Int] = []
+        pageObjectRefs.reserveCapacity(pageRecords.count)
+
+        for record in pageRecords {
+            let pageRef = pdf.beginObject()
+            pdf.writeLine("<<")
+            pdf.writeLine("  /Type /Page")
+            pdf.writeLine("  /Parent \(pagesRef) 0 R")
+            pdf.writeLine(
+                "  /MediaBox [0 0 \(Self.format(record.mediaBox.width)) \(Self.format(record.mediaBox.height))]"
+            )
+            if let maskRef = record.maskObjectRef {
+                pdf
+                    .writeLine(
+                        "  /Resources << /XObject << /Bg \(record.backgroundObjectRef) 0 R /Mask \(maskRef) 0 R >> >>"
+                    )
+            } else {
+                pdf.writeLine("  /Resources << /XObject << /Bg \(record.backgroundObjectRef) 0 R >> >>")
+            }
+            pdf.writeLine("  /Contents \(record.contentObjectRef) 0 R")
+            pdf.writeLine(">>")
+            pdf.endObject()
+            pageObjectRefs.append(pageRef)
+        }
+
+        // Pages object referencing all Page objects.
+        let pagesObjRef = pdf.beginObject()
+        assert(pagesObjRef == pagesRef, "page-object forward reference mismatch")
+        let kids = pageObjectRefs.map { "\($0) 0 R" }.joined(separator: " ")
+        pdf.writeLine("<<")
+        pdf.writeLine("  /Type /Pages")
+        pdf.writeLine("  /Kids [\(kids)]")
+        pdf.writeLine("  /Count \(pageObjectRefs.count)")
+        pdf.writeLine(">>")
+        pdf.endObject()
+
+        // Catalog.
+        let catalogRef = pdf.beginObject()
+        pdf.writeLine("<< /Type /Catalog /Pages \(pagesObjRef) 0 R >>")
+        pdf.endObject()
+
+        let outputPath = "\(NSTemporaryDirectory())/scan.pdf"
+        let outputURL = URL(fileURLWithPath: outputPath)
+        let pdfData = pdf.finalize(rootRef: catalogRef)
+        do {
+            try pdfData.write(to: outputURL)
+        } catch {
+            Logger.error(error)
+            return nil
+        }
         return outputURL
     }
 
     // MARK: - Page composition
 
-    private func addPage(from url: URL, to pdfContext: CGContext) -> Bool {
+    /// Per-page record of the XObject and content stream references needed to emit
+    /// the final `/Page` dictionary after all pages have been written.
+    private struct PageRecord {
+        let backgroundObjectRef: Int
+        let maskObjectRef: Int?
+        let contentObjectRef: Int
+        let mediaBox: CGRect
+    }
+
+    /// Loads the scan, writes the background JPEG, text mask, and content stream as
+    /// indirect objects in the PDF writer, and returns the collected references.
+    private func writePageContent(from url: URL, to pdf: PDFWriter) -> PageRecord? {
         guard let color = self.loadImage(at: url) else {
-            return false
+            return nil
         }
 
         let sourceDPI = self.readDPI(of: url) ?? self.configuredMRCResolution
@@ -81,46 +138,85 @@ final class MRCAssembler: @unchecked Sendable {
 
         let widthPoints = CGFloat(color.width) * 72.0 / sourceDPI
         let heightPoints = CGFloat(color.height) * 72.0 / sourceDPI
-        var mediaBox = CGRect(x: 0, y: 0, width: widthPoints, height: heightPoints)
+        let mediaBox = CGRect(x: 0, y: 0, width: widthPoints, height: heightPoints)
 
-        let pageInfo: [CFString: Any] = [
-            kCGPDFContextMediaBox: CFDataCreate(
-                nil,
-                withUnsafeBytes(of: &mediaBox) { Array($0) },
-                MemoryLayout<CGRect>.size
-            )!,
-        ]
-        pdfContext.beginPDFPage(pageInfo as CFDictionary)
-        defer { pdfContext.endPDFPage() }
-
-        // Background layer: downsampled JPEG across the entire media box.
-        if
-            let background = self.downsampledJPEG(
+        // Background XObject.
+        guard
+            let background = self.backgroundJPEGBytes(
                 color,
                 targetDPI: backgroundDPI,
                 sourceDPI: sourceDPI,
                 quality: backgroundQuality
-            )
+            ) else
         {
-            pdfContext.draw(background, in: mediaBox)
-        } else {
-            // If the downsample fails, fall back to drawing the full-resolution source so the
-            // page is never blank. This also keeps the document legible on a failed MRC path.
-            Logger.debug("MRC: background downsample failed; drawing source image instead")
-            pdfContext.draw(color, in: mediaBox)
+            Logger.debug("MRC: failed to encode background JPEG")
+            return nil
         }
 
-        // Foreground layer: Sauvola-binarized text mask drawn with black fill.
-        if let textMask = self.buildTextMask(for: color) {
-            pdfContext.saveGState()
-            pdfContext.setFillColor(red: 0, green: 0, blue: 0, alpha: 1)
-            pdfContext.draw(textMask, in: mediaBox)
-            pdfContext.restoreGState()
+        let bgDict = """
+        <<
+          /Type /XObject
+          /Subtype /Image
+          /Width \(background.width)
+          /Height \(background.height)
+          /BitsPerComponent 8
+          /ColorSpace /DeviceRGB
+          /Filter /DCTDecode
+          /Length \(background.data.count)
+        >>
+        """
+        let bgRef = pdf.writeStreamObject(dict: bgDict, stream: background.data)
+
+        // Text mask XObject (optional — some pages may have no detectable text).
+        var maskRef: Int?
+        if let mask = self.textMaskCCITTBytes(for: color) {
+            let maskDict = """
+            <<
+              /Type /XObject
+              /Subtype /Image
+              /Width \(mask.width)
+              /Height \(mask.height)
+              /BitsPerComponent 1
+              /ImageMask true
+              /Filter /CCITTFaxDecode
+              /DecodeParms << /K -1 /Columns \(mask.width) /Rows \(mask.height) >>
+              /Length \(mask.data.count)
+            >>
+            """
+            maskRef = pdf.writeStreamObject(dict: maskDict, stream: mask.data)
         } else {
             Logger.verbose("MRC: no text detected on this page; emitting background only")
         }
 
-        return true
+        // Content stream: draw the background across the media box, then (if present)
+        // draw the 1-bit mask with a black fill color. Image XObjects are drawn in the
+        // unit square; the `cm` operator scales them to fill the page.
+        var content = ""
+        content += "q\n"
+        content += "\(Self.format(widthPoints)) 0 0 \(Self.format(heightPoints)) 0 0 cm\n"
+        content += "/Bg Do\n"
+        content += "Q\n"
+        if maskRef != nil {
+            content += "q\n"
+            content += "0 0 0 rg\n"
+            content += "\(Self.format(widthPoints)) 0 0 \(Self.format(heightPoints)) 0 0 cm\n"
+            content += "/Mask Do\n"
+            content += "Q\n"
+        }
+        let contentData = Data(content.utf8)
+        let contentDict = """
+        <<
+          /Length \(contentData.count)
+        >>
+        """
+        let contentRef = pdf.writeStreamObject(dict: contentDict, stream: contentData)
+
+        return PageRecord(
+            backgroundObjectRef: bgRef,
+            maskObjectRef: maskRef,
+            contentObjectRef: contentRef,
+            mediaBox: mediaBox
+        )
     }
 
     // MARK: - Image loading
@@ -171,15 +267,18 @@ final class MRCAssembler: @unchecked Sendable {
         0.5
     }
 
-    // MARK: - Background downsample
+    // MARK: - Background JPEG
 
-    private func downsampledJPEG(
+    /// Downsamples the color page to the target background DPI and JPEG-encodes it.
+    /// Returns the raw JPEG bytes along with the encoded pixel dimensions, suitable for
+    /// direct embedding as a PDF `/DCTDecode` stream.
+    private func backgroundJPEGBytes(
         _ image: CGImage,
         targetDPI: CGFloat,
         sourceDPI: CGFloat,
         quality: CGFloat
     )
-        -> CGImage?
+        -> (data: Data, width: Int, height: Int)?
     {
         // Never upsample: if the background DPI is higher than the source, just re-encode
         // at the source resolution.
@@ -205,8 +304,6 @@ final class MRCAssembler: @unchecked Sendable {
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: newWidth, height: newHeight))
         guard let downsampled = ctx.makeImage() else { return nil }
 
-        // Re-encode as JPEG. We re-decode the result so CGPDFContext embeds the JPEG
-        // bytes as a DCTDecode stream, rather than re-encoding a raw bitmap.
         let data = NSMutableData()
         guard
             let dest = CGImageDestinationCreateWithData(data, UTType.jpeg.identifier as CFString, 1, nil) else
@@ -221,20 +318,15 @@ final class MRCAssembler: @unchecked Sendable {
             return nil
         }
 
-        guard
-            let source = CGImageSourceCreateWithData(data as CFData, nil),
-            let jpegImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else
-        {
-            return nil
-        }
-        return jpegImage
+        return (data: data as Data, width: newWidth, height: newHeight)
     }
 
     // MARK: - Text mask pipeline
 
-    /// Builds a 1-bit CGImage text mask for the given color page, or `nil` if no text
-    /// regions were detected (in which case the page falls back to background-only).
-    private func buildTextMask(for color: CGImage) -> CGImage? {
+    /// Builds a CCITT Group 4 compressed 1-bit text mask for the given color page,
+    /// or `nil` if no text regions were detected (in which case the page falls back
+    /// to background-only).
+    private func textMaskCCITTBytes(for color: CGImage) -> (data: Data, width: Int, height: Int)? {
         let width = color.width
         let height = color.height
 
@@ -275,7 +367,7 @@ final class MRCAssembler: @unchecked Sendable {
         )
         defer { maskBuffer.deallocate() }
 
-        return self.buildImageMask(from: maskBuffer, width: width, height: height)
+        return self.ccittG4Encode(inkBuffer: maskBuffer, width: width, height: height)
     }
 
     // MARK: - Grayscale rendering
@@ -483,30 +575,37 @@ final class MRCAssembler: @unchecked Sendable {
         return output
     }
 
-    // MARK: - 1-bit image mask
+    // MARK: - CCITT Group 4 encoding
 
-    /// Packs the 8-bit grayscale ink buffer into a 1-bit CGImage image mask suitable for
-    /// `CGContext.draw(_:in:)` with a fill color. Bit = 1 means "ink", which we then map
-    /// via `decode: [1, 0]` to opaque paint-through. Apple's docs say `decode: nil` should
-    /// default to `[1, 0]` for image masks, but on current macOS the nil default behaves
-    /// like `[0, 1]` (no inversion), so we set it explicitly.
-    private func buildImageMask(
-        from buffer: UnsafeMutablePointer<UInt8>,
+    /// Packs the 8-bit ink buffer into a 1-bit stream and runs it through
+    /// `NSBitmapImageRep` with `.ccittfax4` TIFF compression. The encoded strip
+    /// bytes from the TIFF are binary-compatible with PDF's `/CCITTFaxDecode`
+    /// filter when `K=-1` (Group 4) and default `BlackIs1` (false).
+    ///
+    /// The packing convention is bit = 1 at ink pixels, which `NSBitmapImageRep`
+    /// with `.calibratedWhite` color space interprets as "white" and emits with
+    /// `photometric = 1` (BlackIsZero) in the TIFF. The PDF CCITT decoder reads
+    /// the same bits and, with default `BlackIs1 false`, treats bit = 1 as sample
+    /// value 1 (white) → transparent, and bit = 0 as sample value 0 (black) →
+    /// painted. Combined with the default image-mask `/Decode [0 1]`, ink pixels
+    /// paint through with the current fill color (which we set to black).
+    private func ccittG4Encode(
+        inkBuffer: UnsafeMutablePointer<UInt8>,
         width: Int,
         height: Int
     )
-        -> CGImage?
+        -> (data: Data, width: Int, height: Int)?
     {
-        let packedBytesPerRow = (width + 7) / 8
-        let packedSize = packedBytesPerRow * height
+        let bytesPerRow = (width + 7) / 8
+        let packedSize = bytesPerRow * height
 
         let packed = UnsafeMutablePointer<UInt8>.allocate(capacity: packedSize)
-        packed.initialize(repeating: 0, count: packedSize)
         defer { packed.deallocate() }
+        packed.initialize(repeating: 0, count: packedSize)
 
         for y in 0..<height {
-            let src = buffer + y * width
-            let dst = packed + y * packedBytesPerRow
+            let src = inkBuffer + y * width
+            let dst = packed + y * bytesPerRow
             for x in 0..<width where src[x] == 0 {
                 let byteIdx = x >> 3
                 let bitIdx = 7 - (x & 7)
@@ -514,23 +613,213 @@ final class MRCAssembler: @unchecked Sendable {
             }
         }
 
-        let data = Data(bytes: packed, count: packedSize)
-        guard let provider = CGDataProvider(data: data as CFData) else {
+        // NSBitmapImageRep(bitmapDataPlanes:) references but does not copy the buffer.
+        // `packed` stays alive for the duration of this function via the `defer`, so
+        // `rep` and the TIFF generation call both see valid data.
+        var planes: [UnsafeMutablePointer<UInt8>?] = [packed]
+        let rep: NSBitmapImageRep? = planes.withUnsafeMutableBufferPointer { buf in
+            NSBitmapImageRep(
+                bitmapDataPlanes: buf.baseAddress,
+                pixelsWide: width,
+                pixelsHigh: height,
+                bitsPerSample: 1,
+                samplesPerPixel: 1,
+                hasAlpha: false,
+                isPlanar: false,
+                colorSpaceName: .calibratedWhite,
+                bytesPerRow: bytesPerRow,
+                bitsPerPixel: 1
+            )
+        }
+        guard let rep else {
+            Logger.debug("MRC: failed to create NSBitmapImageRep for mask")
             return nil
         }
 
-        let decode: [CGFloat] = [1, 0]
-        return decode.withUnsafeBufferPointer { buf in
-            CGImage(
-                maskWidth: width,
-                height: height,
-                bitsPerComponent: 1,
-                bitsPerPixel: 1,
-                bytesPerRow: packedBytesPerRow,
-                provider: provider,
-                decode: buf.baseAddress,
-                shouldInterpolate: false
-            )
+        guard
+            let tiff = rep.representation(
+                using: .tiff,
+                properties: [.compressionMethod: NSBitmapImageRep.TIFFCompression.ccittfax4.rawValue]
+            ) else
+        {
+            Logger.debug("MRC: failed to produce CCITT G4 TIFF")
+            return nil
         }
+
+        guard let stripBytes = Self.extractTIFFStripData(tiff) else {
+            Logger.debug("MRC: failed to extract CCITT strip data from TIFF")
+            return nil
+        }
+
+        return (data: stripBytes, width: width, height: height)
+    }
+
+    /// Parses the header and first IFD of a TIFF file and returns the concatenated
+    /// compressed strip data. Assumes a single-image TIFF; multi-image TIFFs are
+    /// not supported (and `NSBitmapImageRep` does not produce them here).
+    private static func extractTIFFStripData(_ tiff: Data) -> Data? {
+        guard tiff.count >= 8 else { return nil }
+        let byteOrder = String(bytes: tiff[0..<2], encoding: .ascii) ?? ""
+        let littleEndian: Bool
+        switch byteOrder {
+        case "II": littleEndian = true
+        case "MM": littleEndian = false
+        default: return nil
+        }
+
+        func u16(_ offset: Int) -> UInt16 {
+            let a = UInt16(tiff[offset])
+            let b = UInt16(tiff[offset + 1])
+            return littleEndian ? (a | (b << 8)) : ((a << 8) | b)
+        }
+        func u32(_ offset: Int) -> UInt32 {
+            let a = UInt32(tiff[offset])
+            let b = UInt32(tiff[offset + 1])
+            let c = UInt32(tiff[offset + 2])
+            let d = UInt32(tiff[offset + 3])
+            return littleEndian
+                ? (a | (b << 8) | (c << 16) | (d << 24))
+                : ((a << 24) | (b << 16) | (c << 8) | d)
+        }
+
+        guard u16(2) == 42 else { return nil }
+        let ifdOffset = Int(u32(4))
+        guard ifdOffset + 2 <= tiff.count else { return nil }
+        let entryCount = Int(u16(ifdOffset))
+
+        var stripOffsets: [Int] = []
+        var stripByteCounts: [Int] = []
+
+        for i in 0..<entryCount {
+            let base = ifdOffset + 2 + i * 12
+            guard base + 12 <= tiff.count else { return nil }
+            let tag = u16(base)
+            let type = u16(base + 2)
+            let count = Int(u32(base + 4))
+            let valueOffset = Int(u32(base + 8))
+
+            let elementSize = type == 3 ? 2 : 4 // 3 = SHORT, 4 = LONG
+            let totalBytes = elementSize * count
+            let inline = totalBytes <= 4
+
+            func readValues() -> [Int] {
+                var out: [Int] = []
+                out.reserveCapacity(count)
+                for j in 0..<count {
+                    let off = inline ? base + 8 + j * elementSize : valueOffset + j * elementSize
+                    guard off + elementSize <= tiff.count else { continue }
+                    if type == 3 {
+                        out.append(Int(u16(off)))
+                    } else if type == 4 {
+                        out.append(Int(u32(off)))
+                    }
+                }
+                return out
+            }
+
+            switch tag {
+            case 273: stripOffsets = readValues() // StripOffsets
+            case 279: stripByteCounts = readValues() // StripByteCounts
+            default: break
+            }
+        }
+
+        guard
+            !stripOffsets.isEmpty,
+            stripOffsets.count == stripByteCounts.count else
+        {
+            return nil
+        }
+
+        var combined = Data()
+        for (off, len) in zip(stripOffsets, stripByteCounts) {
+            guard off + len <= tiff.count else { return nil }
+            combined.append(tiff.subdata(in: off..<(off + len)))
+        }
+        return combined
+    }
+
+    // MARK: - Formatting helpers
+
+    private static func format(_ value: CGFloat) -> String {
+        String(format: "%.4f", Double(value))
+    }
+}
+
+// MARK: - PDFWriter
+
+/// Minimal hand-rolled PDF writer. Accumulates objects into a single buffer and
+/// emits an xref table and trailer at finalize time.
+///
+/// This writer only supports what MRCAssembler needs: indirect objects with
+/// arbitrary dictionaries, indirect stream objects with arbitrary payloads, and a
+/// single trailer referencing a catalog object. Forward references are supported
+/// by having callers compute the target object number up front (see the `Pages`
+/// object in `MRCAssembler.assemble(urls:)`).
+private final class PDFWriter {
+    private var buffer = Data()
+    private var offsets: [Int] = [0]
+
+    init() {
+        // Header + binary marker so byte-safe transport is preserved.
+        self.writeLine("%PDF-1.5")
+        self.buffer.append(contentsOf: [0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A])
+    }
+
+    var nextObjectNumber: Int {
+        self.offsets.count
+    }
+
+    func writeLine(_ line: String) {
+        self.buffer.append(contentsOf: line.utf8)
+        self.buffer.append(0x0A) // LF
+    }
+
+    func writeRaw(_ data: Data) {
+        self.buffer.append(data)
+    }
+
+    @discardableResult
+    func beginObject() -> Int {
+        self.offsets.append(self.buffer.count)
+        let num = self.offsets.count - 1
+        self.writeLine("\(num) 0 obj")
+        return num
+    }
+
+    func endObject() {
+        self.writeLine("endobj")
+    }
+
+    /// Writes an indirect object that wraps a stream payload. The PDF spec requires
+    /// an EOL between the closing `>>` of the dict and the `stream` keyword, and an
+    /// EOL before `endstream`. The `/Length` of the dict must match the byte count
+    /// of the raw stream payload exclusive of those EOLs.
+    @discardableResult
+    func writeStreamObject(dict: String, stream: Data) -> Int {
+        let num = self.beginObject()
+        self.writeLine(dict)
+        self.writeLine("stream")
+        self.writeRaw(stream)
+        self.writeLine("")
+        self.writeLine("endstream")
+        self.endObject()
+        return num
+    }
+
+    func finalize(rootRef: Int) -> Data {
+        let xrefOffset = self.buffer.count
+        self.writeLine("xref")
+        self.writeLine("0 \(self.offsets.count)")
+        self.writeLine("0000000000 65535 f ")
+        for i in 1..<self.offsets.count {
+            self.writeLine(String(format: "%010d 00000 n ", self.offsets[i]))
+        }
+        self.writeLine("trailer")
+        self.writeLine("<< /Size \(self.offsets.count) /Root \(rootRef) 0 R >>")
+        self.writeLine("startxref")
+        self.writeLine("\(xrefOffset)")
+        self.writeLine("%%EOF")
+        return self.buffer
     }
 }
